@@ -4,78 +4,65 @@ const int width = 1280, height = 720;
 
 const int dx = 3;
 
-const int X = width/dx;
-double curveX[X + 2], curveY[X + 2];
-
+const int X = width / dx;
+double    curveX[X + 10], curveY[X + 10];
 
 void iDraw()
 {
-    double t = iGetTime();
-    int last = 0;
+    double t, x;
+    t = iGetTime();
+    int i, n, last, side, convex, crossesAxis, left;
+    last = 0;
+    side = -2;
     iClear();
-    for (int i = 0; i < X; i++)
-    {
-        curveY[i] = height / 2 + 200 * sin(2 * PI * (3 * t - curveX[i] / 200));
-        if (i != 0)
-        {
-            //only draw filled polygons if the curve crosses x-axis
-            if ((curveY[i - 1] - height / 2) / (curveY[i] - height / 2) < 0 || i == (X - 1))
-            {
-                //insert 3 points to close curve with x-axis
-                //changing next 2 points
-                iSetColorEx(9, 132, 227, 1.0);
-                double tempX = curveX[i], tempY = curveY[i];
-                curveX[i] = curveX[i];
-                curveY[i] = curveY[i + 1] = height / 2;
-                curveX[i + 1] = curveX[i + 2] = curveX[last];
-                curveY[i + 2] = curveY[last];
-                iFilledPolygon(&curveX[last], &curveY[last], i - last + 3);
-                //reverting back points
-                curveX[i] = tempX, curveY[i] = tempY;
-                curveX[i + 1] = dx * (i + 1);
-                curveX[i + 2] = dx * (i + 2);
-                last = i;
-                // iSetColorEx(255, 0, 0, 1.0);
-                // iFilledCircle(curveX[last], curveY[last], 5, 100);
+    double pX[4], pY[4];
+    pY[2] = pY[3] = height / 2;
+    for (i = 0, x = -dx; x <= width + dx; x += dx, i++) {
+        pX[2] = pX[1] = x;
+        pY[1]         = 50 + height / 2 + 200 * sin(2 * PI * (1 * t - x / 200)) * sin(2 * PI * (0.25 * t - x / 150));
+        if (i > 0) {
+            crossesAxis = (pY[0] >= height / 2 && pY[1] < height / 2) || (pY[0] < height / 2 && pY[1] >= height / 2);
+            if (crossesAxis) {
+                // draw two triangles instead of a quadrilateral
+                pX[3] = pX[1], pY[3] = pY[1], pX[2] = pX[0];
+                pX[1] = (height / 2 - pY[0]) * (pX[1] - pX[0]) / (pY[1] - pY[0]) + pX[0], pY[1] = height / 2;
+                iFilledPolygon(pX, pY, 3);
+                pX[2] = pX[0] = pX[3], pY[0] = pY[3];
+                iFilledPolygon(pX, pY, 3);
+                pX[3] = pX[0], pY[3] = height / 2;
+                continue;
             }
+            iFilledPolygon(pX, pY, 4);
         }
+        pX[3] = pX[0] = pX[1], pY[0] = pY[1];
     }
-    
 }
 
 void iMouseMove(int mx, int my)
 {
-    //printf("x = %d, y= %d\n",mx,my);
-    //place your codes here
+    // printf("x = %d, y= %d\n",mx,my);
+    // place your codes here
 }
 
-void iMouse(int button, int state, int mx, int my)
-{
-}
+void iMouse(int button, int state, int mx, int my) {}
 
 void iKeyboard(unsigned char key)
 {
-    if (key == 'q')
-    {
-        exit(0);
-    }
-    //place your codes for other keys here
+    if (key == 'q') { exit(0); }
+    // place your codes for other keys here
 }
 
 void iSpecialKeyboard(unsigned char key)
 {
 
-    if (key == GLUT_KEY_END)
-    {
-        exit(0);
-    }
-    //place your codes for other keys here
+    if (key == GLUT_KEY_END) { exit(0); }
+    // place your codes for other keys here
 }
 
 int main()
 {
-    for(int i = 0; i < width; i++)
-        curveX[i] =  i * dx;
+    for (int i = 0; i < width; i++)
+        curveX[i] = i * dx;
     iSetTransparency(1);
     iInitializeEx(width, height, "Demo!");
     return 0;
