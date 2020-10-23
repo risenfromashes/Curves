@@ -2,17 +2,17 @@
 
 const int width = 1280, height = 720;
 
-const int dx = 5;
+const int dx = 3;
 
-const int N = width / dx + 1;
+const int N = width / dx + 2;
 
 double X[N];
 
 int    n_sines = 0;
 double A[100], L[100], P[100], C[100][3];
-double A0, L0;
-
-int    clickedState = 0, selectedIndex = -1;
+double A0[100], L0[100], P0[100];
+int    selected[100] = {0}, n_selected = 0;
+int    clickedState = 0;
 double X0, Y0;
 
 void drawSines()
@@ -53,11 +53,11 @@ void drawSines()
         double stroke;
         if (j < n_sines) {
             iSetColorEx(C[j][0], C[j][1], C[j][2], 1.0);
-            stroke = 2 + 2 * (j == selectedIndex);
+            stroke = 2 + 2 * selected[j];
         }
         else {
             iSetColorEx(255, 255, 255, 0.66);
-            stroke = 3 + 2 * (j == selectedIndex);
+            stroke = 3 + 2 * (n_selected == n_sines);
         }
         iPath(X, qY, N, stroke);
     }
@@ -80,10 +80,15 @@ void iDraw()
 int selectCurve(int x, int y)
 {
     y -= height / 2;
-    double minY       = height;
+    double Y, C, minY = height;
     int    sine_index = -1;
-    for (int i = 0; i < n_sines; i++) {
-        double Y = A[i] * sin(2 * PI / L[i] * (x - P[i]));
+    for (int i = 0; i <= n_sines; i++) {
+        if (i < n_sines) {
+            Y = A[i] * sin(2 * PI / L[i] * (x - P[i]));
+            C += Y;
+        }
+        else
+            Y = C;
         if (fabs(Y) < fabs(minY)) {
             if ((0 <= y && y <= Y) || (0 >= y && y >= Y)) {
                 sine_index = i;
@@ -91,18 +96,46 @@ int selectCurve(int x, int y)
             }
         }
     }
-    return sine_index;
+    if (sine_index == -1) return 0;
+    int all = sine_index == n_sines, ctrlPressed = glutGetModifiers() & GLUT_ACTIVE_CTRL;
+    if (!selected[sine_index] || all) { // do nothing if its already selected
+        if (ctrlPressed && !all) {      // just add this to selected if ctrl is pressed
+            if (!selected[sine_index]) n_selected++;
+            selected[sine_index] = 1;
+        }
+        else {
+            if (all)
+                n_selected = n_sines;
+            else
+                n_selected = 1;
+            for (int i = 0; i < n_sines; i++) {
+                if (all)
+                    selected[i] = 1;
+                else
+                    selected[i] = i == sine_index;
+            }
+        }
+    }
+    return 1;
 }
 
 void iMouseMove(int x, int y)
 {
-    if (clickedState) {
-        int s            = (y >= height / 2) ? 1 : -1;
-        L[selectedIndex] = L0 + x - X0;
-        if ((Y0 >= height / 2 && y < height / 2) || (Y0 < height / 2 && y >= height / 2))
-            A[selectedIndex] = -(A0 + s * (y - height + Y0));
-        else
-            A[selectedIndex] = A0 + s * (y - Y0);
+    if (clickedState && n_selected > 0) {
+        int s, i, invert;
+        s      = (y >= height / 2) ? 1 : -1;
+        invert = (Y0 >= height / 2 && y < height / 2) || (Y0 < height / 2 && y >= height / 2);
+        for (i = 0; i < n_sines; i++) {
+            if (selected[i]) {
+                double X = round(4 * (X0 - P0[i]) / L0[i]) * L0[i] / 4 + P0[i];
+                L[i]     = L0[i] + x - X0;
+                P[i]     = X - L[i] / L0[i] * (X - P0[i]);
+                if (invert)
+                    A[i] = -(A0[i] + s * (y - height + Y0));
+                else
+                    A[i] = A0[i] + s * (y - Y0);
+            }
+        }
     }
 }
 
@@ -110,27 +143,31 @@ void iMouse(int button, int state, int x, int y)
 {
     if (state == GLUT_DOWN) {
         if (button < 3) {
-            int i = selectCurve(x, y);
-            if (i >= 0) {
-                selectedIndex = i;
-                clickedState  = 1;
+            if (selectCurve(x, y)) {
+                clickedState = 1;
                 X0 = x, Y0 = y;
-                A0 = A[selectedIndex], L0 = L[selectedIndex];
+                for (int j = 0; j < n_sines; j++)
+                    if (selected[j]) A0[j] = A[j], L0[j] = L[j], P0[j] = P[j];
             }
-            else
-                selectedIndex = -1;
+            else {
+                // deselect all
+                for (int j = 0; j < n_sines; j++)
+                    selected[j] = 0;
+                n_selected = 0;
+            }
         }
-        else if (selectedIndex >= 0) {
-            if (button == 3)
-                P[selectedIndex] += 10;
-            else if (button == 4)
-                P[selectedIndex] -= 10;
+        else if (n_selected > 0) {
+            if (button == 3 || button == 4) {
+                int s = button == 3 ? 1 : -1;
+                for (int j = 0; j < n_sines; j++)
+                    if (selected[j]) P[j] = P[j] + s * 10;
+            }
         }
     }
     else {
-        if (selectedIndex >= 0) {
-            if (A[selectedIndex] < 0) P[selectedIndex] += L[selectedIndex] / 2, A[selectedIndex] = -A[selectedIndex];
-        }
+        // replace negative amplitude with L/2 phase shift
+        for (int j = 0; j < n_sines; j++)
+            if (selected[j] && A[j] < 0) P[j] += L[j] / 2, A[j] = -A[j];
         clickedState = 0;
     }
 }
@@ -143,7 +180,27 @@ void addSine()
     iRandomColor(1, 1, C[n_sines]);
     n_sines++;
 }
-void removeSine() { n_sines--; }
+
+void removeSine()
+{
+    if (n_selected > 0) {
+        int i, r;
+        for (i = 0, r = 0; i < n_sines; i++) {
+            if (selected[i]) {
+                r++;
+                selected[i] = 0;
+            }
+            else if (r > 0) {
+                A[i - r] = A[i], L[i - r] = L[i], P[i - r] = P[i];
+                C[i - r][0] = C[i][0], C[i - r][1] = C[i][1], C[i - r][2] = C[i][2];
+            }
+        }
+        n_sines -= r;
+    }
+    else
+        n_sines--;
+    n_selected = 0;
+}
 void iKeyboard(unsigned char key)
 {
     switch (key) {
@@ -152,8 +209,14 @@ void iKeyboard(unsigned char key)
             if (n_sines < 100) addSine();
             break;
         case '-':
+        case (unsigned char)127:
             if (n_sines >= 0) removeSine();
             break;
+        case 1: {
+            for (int i = 0; i < n_sines; i++)
+                selected[i] = 1;
+            n_selected = n_sines;
+        } break;
         default: break;
     }
 }
@@ -162,7 +225,9 @@ void iSpecialKeyboard(unsigned char key)
 {
 
     if (key == GLUT_KEY_END) { exit(0); }
-    // place your codes for other keys here
+    switch (key) {
+        case GLUT_KEY_END: exit(0); break;
+    }
 }
 
 int main()
