@@ -2,15 +2,14 @@
 
 const int width = 1280, height = 720;
 
-const int dx = 3;
+const int dx = 1;
 
 const int N = width / dx + 2;
 
 double X[N];
-
 int    n_sines = 0;
 double A[100], L[100], P[100], C[100][3];
-double A0[100], L0[100], P0[100];
+double A0[100], L0[100], P0[100], PX[100];
 int    selected[100] = {0}, n_selected = 0;
 int    clickedState = 0;
 double X0, Y0;
@@ -76,6 +75,7 @@ void iDraw()
     iClear();
     drawSines();
     drawAxis();
+    iSetColor(255, 0, 0);
 }
 
 int selectCurve(int x, int y)
@@ -91,7 +91,7 @@ int selectCurve(int x, int y)
         else
             Y = C;
         if (fabs(Y) < fabs(minY)) {
-            if ((0 <= y && y <= Y) || (0 >= y && y >= Y)) {
+            if ((0 <= y && y <= Y + 2) || (0 >= y && y >= Y - 2)) {
                 sine_index = i;
                 minY       = Y;
             }
@@ -124,18 +124,19 @@ int selectCurve(int x, int y)
 void iMouseMove(int x, int y)
 {
     if (clickedState && n_selected > 0) {
-        int s, i, invert;
-        s      = (y >= height / 2) ? 1 : -1;
-        invert = (Y0 >= height / 2 && y < height / 2) || (Y0 < height / 2 && y >= height / 2);
-        for (i = 0; i < n_sines; i++) {
+        int one = n_selected == 1;
+        for (int i = 0; i < n_sines; i++) {
             if (selected[i]) {
-                double X = round(4 * (X0 - P0[i]) / L0[i]) * L0[i] / 4 + P0[i];
-                L[i]     = L0[i] + x - X0;
-                P[i]     = X - L[i] / L0[i] * (X - P0[i]);
-                if (invert)
-                    A[i] = -(A0[i] + s * (y - height + Y0));
-                else
-                    A[i] = A0[i] + s * (y - Y0);
+                double X = one ? PX[i] : width / 2;
+                if (fabs(X - X0) >= 5) {
+                    L[i] = L0[i] * (x - X) / (X0 - X);
+                    if (L[i] > 0)
+                        L[i] = max(L[i], 30);
+                    else if (L[i] < 0)
+                        L[i] = min(L[i], -30);
+                    P[i] = PX[i] - L[i] / L0[i] * (PX[i] - P0[i]);
+                }
+                A[i] = (y - height / 2) / (Y0 - height / 2) * A0[i];
             }
         }
     }
@@ -151,8 +152,12 @@ void iMouse(int button, int state, int x, int y)
             shouldDeselect = r > 1;
             if (r) {
                 X0 = x, Y0 = y;
-                for (int j = 0; j < n_sines; j++)
-                    if (selected[j]) A0[j] = A[j], L0[j] = L[j], P0[j] = P[j];
+                for (int i = 0; i < n_sines; i++)
+                    if (selected[i]) {
+                        A0[i] = A[i], L0[i] = L[i], P0[i] = P[i];
+                        PX[i] =
+                            (2 * round(2 * (X0 - P[i]) / L[i] - 0.5) + 1) * L[i] / 4 + P[i]; // take the nearest peak;
+                    }
             }
             else {
                 for (int j = 0; j < n_sines; j++)
@@ -174,7 +179,7 @@ void iMouse(int button, int state, int x, int y)
                 if (x == X0 && y == Y0) {
                     for (int j = 0; j < n_sines; j++)
                         if (selected[j] < 0) selected[j] = 0;
-                    n_selected = 0;
+                    n_selected = 1;
                 }
                 else {
                     for (int j = 0; j < n_sines; j++)
