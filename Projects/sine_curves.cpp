@@ -127,16 +127,18 @@ void iMouseMove(int x, int y)
         int one = n_selected == 1;
         for (int i = 0; i < n_sines; i++) {
             if (selected[i]) {
-                double X = one ? PX[i] : width / 2;
-                if (fabs(X - X0) >= 5) {
-                    L[i] = L0[i] * (x - X) / (X0 - X);
-                    if (L[i] > 0)
-                        L[i] = max(L[i], 30);
-                    else if (L[i] < 0)
-                        L[i] = min(L[i], -30);
-                    P[i] = PX[i] - L[i] / L0[i] * (PX[i] - P0[i]);
-                }
                 A[i] = (y - height / 2) / (Y0 - height / 2) * A0[i];
+                if (one) {
+                    if (fabs(PX[i] - X0) < 5) continue;
+                    L[i] = L0[i] * (x - PX[i]) / (X0 - PX[i]);
+                }
+                else
+                    L[i] = L0[i] * x / X0;
+                if (L[i] > 0)
+                    L[i] = max(L[i], 50);
+                else if (L[i] < 0)
+                    L[i] = min(L[i], -50);
+                P[i] = PX[i] - L[i] / L0[i] * (PX[i] - P0[i]);
             }
         }
     }
