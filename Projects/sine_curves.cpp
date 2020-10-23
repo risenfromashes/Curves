@@ -53,10 +53,11 @@ void drawSines()
         double stroke;
         if (j < n_sines) {
             iSetColorEx(C[j][0], C[j][1], C[j][2], 1.0);
-            stroke = 2 + 2 * selected[j];
+            stroke = 2;
+            if (selected[j]) stroke += 2;
         }
         else {
-            iSetColorEx(255, 255, 255, 0.66);
+            iSetColorEx(255, 255, 255, 0.75);
             stroke = 3 + 2 * (n_selected == n_sines);
         }
         iPath(X, qY, N, stroke);
@@ -98,23 +99,24 @@ int selectCurve(int x, int y)
     }
     if (sine_index == -1) return 0;
     int all = sine_index == n_sines, ctrlPressed = glutGetModifiers() & GLUT_ACTIVE_CTRL;
-    if (!selected[sine_index] || all) { // do nothing if its already selected
-        if (ctrlPressed && !all) {      // just add this to selected if ctrl is pressed
-            if (!selected[sine_index]) n_selected++;
-            selected[sine_index] = 1;
-        }
-        else {
-            if (all)
-                n_selected = n_sines;
-            else
-                n_selected = 1;
-            for (int i = 0; i < n_sines; i++) {
-                if (all)
-                    selected[i] = 1;
-                else
-                    selected[i] = i == sine_index;
-            }
-        }
+    if (selected[sine_index]) { // if already selected, mark others to be deselected on mouse up
+        for (int i = 0; i < n_sines; i++)
+            if (selected[i] && i != sine_index) selected[i] = -1;
+        return 2;
+    }
+    else if (all) { // select all
+        for (int i = 0; i < n_sines; i++)
+            selected[i] = 1;
+        n_selected = n_sines;
+    }
+    else if (ctrlPressed) { // just add this to selected if ctrl is pressed
+        if (!selected[sine_index]) n_selected++;
+        selected[sine_index] = 1;
+    }
+    else { // just select this
+        for (int i = 0; i < n_sines; i++)
+            selected[i] = i == sine_index;
+        n_selected = 1;
     }
     return 1;
 }
@@ -141,16 +143,18 @@ void iMouseMove(int x, int y)
 
 void iMouse(int button, int state, int x, int y)
 {
+    static int shouldDeselect = 0;
     if (state == GLUT_DOWN) {
+        clickedState = 1;
         if (button < 3) {
-            if (selectCurve(x, y)) {
-                clickedState = 1;
+            int r          = selectCurve(x, y);
+            shouldDeselect = r > 1;
+            if (r) {
                 X0 = x, Y0 = y;
                 for (int j = 0; j < n_sines; j++)
                     if (selected[j]) A0[j] = A[j], L0[j] = L[j], P0[j] = P[j];
             }
             else {
-                // deselect all
                 for (int j = 0; j < n_sines; j++)
                     selected[j] = 0;
                 n_selected = 0;
@@ -165,9 +169,23 @@ void iMouse(int button, int state, int x, int y)
         }
     }
     else {
-        // replace negative amplitude with L/2 phase shift
-        for (int j = 0; j < n_sines; j++)
-            if (selected[j] && A[j] < 0) P[j] += L[j] / 2, A[j] = -A[j];
+        if (n_selected > 0) {
+            if (shouldDeselect) {
+                if (x == X0 && y == Y0) {
+                    for (int j = 0; j < n_sines; j++)
+                        if (selected[j] < 0) selected[j] = 0;
+                    n_selected = 0;
+                }
+                else {
+                    for (int j = 0; j < n_sines; j++)
+                        if (selected[j] < 0) selected[j] = 1;
+                }
+                shouldDeselect = 0;
+            }
+            // replace negative amplitude with L/2 phase shift
+            for (int j = 0; j < n_sines; j++)
+                if (selected[j] && A[j] < 0) P[j] += L[j] / 2, A[j] = -A[j];
+        }
         clickedState = 0;
     }
 }
