@@ -5,7 +5,7 @@
 #include <time.h>
 #include <ctype.h>
 
-#define PI 3.1415926535897932
+#define PI  3.1415926535897932
 #define ERR 1e-8
 
 #define EXPR_MAX_LEN 128
@@ -13,8 +13,23 @@
 #define EXPR_DEBUG_LOG 1
 
 static unsigned int error_flags = 0;
+// error enums
 #define EXPR_UNMATCHED_BRACKET 1
-#define UNKOWN_SYMBOL 2
+#define EXPR_UNKNOWN_SYMBOL    2
+#define EXPR_UNDEFINED         4
+#define EXPR_DISCONTINUOUS     8
+// function enums
+#define EXPR_SIN  0
+#define EXPR_COS  1
+#define EXPR_TAN  2
+#define EXPR_ASIN 3
+#define EXPR_ACOS 4
+#define EXPR_ATAN 5
+#define EXPR_LOG  6
+#define EXPR_ABS  7
+#define EXPR_SQRT 8
+#define EXPR_CBRT 9
+
 int exprGetError() { return error_flags; }
 
 // l = -1 indicates the string is new and its the first call
@@ -31,8 +46,9 @@ double exprEval(const char* expr, int l, double x, double y)
     int        until_op = 0;
     if (l == -1 || l == -2) { // new evaluation
         i = 0;                // reset counter
+        error_flags &= 3;     // clear point specific flags
         if (l == -1) {        // if string is new
-            error_flags = 0;
+            error_flags = 0;  // clear all flags
             len         = strlen(expr);
             // remember bracket endings
             int i, r;
@@ -137,29 +153,31 @@ double exprEval(const char* expr, int l, double x, double y)
             p[denom] *= c = t;
         }
         else {
-            double (*f)(double);
+            int f;
             if (!strncmp(expr + i, "sin", 3))
-                i += 3, f = &sin;
+                i += 3, f = EXPR_SIN;
             else if (!strncmp(expr + i, "cos", 3))
-                i += 3, f = &cos;
+                i += 3, f = EXPR_COS;
             else if (!strncmp(expr + i, "tan", 3))
-                i += 3, f = &tan;
+                i += 3, f = EXPR_TAN;
             else if (!strncmp(expr + i, "arcsin", 6))
-                i += 6, f = &asin;
+                i += 6, f = EXPR_ASIN;
             else if (!strncmp(expr + i, "arccos", 6))
-                i += 6, f = &acos;
+                i += 6, f = EXPR_ACOS;
             else if (!strncmp(expr + i, "arctan", 6))
-                i += 6, f = &atan;
+                i += 6, f = EXPR_ATAN;
             else if (!strncmp(expr + i, "ln", 2))
-                i += 2, f = &log;
+                i += 2, f = EXPR_LOG;
             else if (!strncmp(expr + i, "log", 3))
-                i += 3, f = &log;
+                i += 3, f = EXPR_LOG;
             else if (!strncmp(expr + i, "sqrt", 4))
-                i += 4, f = &sqrt;
+                i += 4, f = EXPR_SQRT;
+            else if (!strncmp(expr + i, "cbrt", 4))
+                i += 4, f = EXPR_CBRT;
             else if (!strncmp(expr + i, "abs", 3))
-                i += 3, f = &fabs;
+                i += 3, f = EXPR_ABS;
             else {
-                error_flags |= UNKOWN_SYMBOL;
+                error_flags |= EXPR_UNKNOWN_SYMBOL;
                 printf("ERROR: Unkown symbol at %d [%d] (l: %d)\n", i, (int)expr[i], l);
                 return 0;
             }
@@ -168,7 +186,45 @@ double exprEval(const char* expr, int l, double x, double y)
             else
                 t = exprEval(expr, -3, x, y);
             if (exprGetError()) return 0;
-            p[denom] *= c = f(t);
+            switch (f) {
+                case EXPR_SIN: p[denom] *= c = sin(t); break;
+                case EXPR_COS: p[denom] *= c = cos(t); break;
+                case EXPR_TAN:
+                    if (fabs(round(t * 2 / PI) * PI / 2 - t) < 1e-5) {
+                        error_flags |= EXPR_DISCONTINUOUS;
+                        return 0;
+                    }
+                    p[denom] *= c = tan(t);
+                    break;
+                case EXPR_ASIN:
+                case EXPR_ACOS:
+                    if (t > 1.0 || t < -1.0) {
+                        error_flags |= EXPR_UNDEFINED;
+                        return 0;
+                    }
+                    if (f == EXPR_ASIN)
+                        p[denom] *= c = asin(t);
+                    else
+                        p[denom] *= c = acos(t);
+                    break;
+                case EXPR_ATAN: p[denom] *= c = atan(t); break;
+                case EXPR_LOG:
+                    if (t <= 0) {
+                        error_flags |= EXPR_DISCONTINUOUS;
+                        return 0;
+                    }
+                    p[denom] *= c = log(t);
+                    break;
+                case EXPR_ABS: p[denom] *= c = fabs(t); break;
+                case EXPR_SQRT:
+                    if (t < 0) {
+                        error_flags |= EXPR_UNDEFINED;
+                        return 0;
+                    }
+                    p[denom] *= c = sqrt(t);
+                    break;
+                case EXPR_CBRT: p[denom] *= c = cbrt(t); break;
+            }
         }
 #if EXPR_DEBUG_LOG
         if (denom) printf("%d/%d) %0.1f + %0.1f/(%0.1f) [%0.1f]\n", i, l, s, p[0], p[1], c);
@@ -191,7 +247,7 @@ int main()
     char    expr[EXPR_MAX_LEN] = "y = ln abs(sin(x + sqrt(x-y))) + (x-2)^2";
     // scanf("%[^n]", &expr);
     // printf("expr")
-    printf("%0.1f\n", exprEval(expr, -1, 3, -1));
+    printf("%lf\n", exprEval(expr, -1, 3, -1));
     if (exprGetError()) printf("error flag: %d\n", exprGetError());
     end = clock();
     printf("Elapsed: %0.1f\n", (double)(end - start) / CLOCKS_PER_SEC);
