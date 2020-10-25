@@ -53,7 +53,7 @@ void drawTextBox()
 
 void solveExpr()
 {
-    if (strlen(expr) > 4) {
+    if (strlen(expr) > 0) {
         int G[GRID_SIZE][GRID_SIZE] = {1};
         int T                       = round(log2(GRID_SIZE));
         for (int k = 0; k <= T; k++) {
@@ -72,9 +72,11 @@ void solveExpr()
                         // if (changed) printf("([%lf,%lf],[%lf,%lf])->[%lf,%lf]\n", x.l, x.r, y.l, y.r, r.l, r.r);
                         if ((r.dl || r.dr) && (r.l <= 0 && 0 <= r.r)) {
                             if (P == GRID_SIZE) {
-                                double d = (double)width / GRID_SIZE;
-                                double x = h * d, y = -v * d + (width + height) / 2.0;
-                                iRectangle(x, y - d, d, d);
+                                if (r.cont && isfinite(r.l) && isfinite(r.r)) {
+                                    double d = (double)width / GRID_SIZE;
+                                    double x = h * d, y = -v * d + (width + height) / 2.0;
+                                    iRectangle(x, y - d, d, d);
+                                }
                             }
                             else {
                                 int d       = GRID_SIZE / P / 2;
