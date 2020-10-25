@@ -4,19 +4,21 @@
 #include <math.h>
 #include <time.h>
 #include <ctype.h>
+
 #ifndef PI
 #define PI 3.1415926535897932
 #endif
 #ifndef ERR
 #define ERR 1e-8
 #endif
-
+#ifndef min
 #define min(x, y) ((x < y) ? (x) : (y))
+#endif
+#ifndef max
 #define max(x, y) ((x > y) ? (x) : (y))
+#endif
 
 #define EXPR_MAX_LEN 128
-
-#define EXPR_DEBUG_LOG 0
 
 static unsigned int error_flags = 0;
 // error enums
@@ -40,16 +42,24 @@ static unsigned int error_flags = 0;
 
 struct interval {
     double l, r;
-    int    dl, dr;
+    int    dl, dr; // defined?
+    int    cont;   // continuous in interval?
 };
 
 int             exprIsUndef(struct interval x) { return !x.dl && !x.dr; }
 int             exprIsConst(struct interval x) { return x.dl && x.dr && fabs(x.l - x.r) < ERR; }
+struct interval exprCreateInterval(double l, double r)
+{
+    struct interval v;
+    v.l = l, v.r = r;
+    v.cont = v.dl = v.dr = 1;
+    return v;
+}
 struct interval exprToInterval(double x)
 {
     struct interval v;
     v.l = v.r = x;
-    v.dl = v.dr = 1;
+    v.cont = v.dl = v.dr = 1;
     return v;
 }
 struct interval exprUndef()
@@ -62,8 +72,9 @@ struct interval exprUndef()
 struct interval exprMul(struct interval x, struct interval y)
 {
     struct interval v;
-    v.dl = x.dl && x.dr && y.dl && y.dr;
-    v.dr = (x.dl || x.dr) && (y.dl || y.dr);
+    v.dl   = x.dl && x.dr && y.dl && y.dr;
+    v.dr   = (x.dl || x.dr) && (y.dl || y.dr);
+    v.cont = x.cont && y.cont;
     if (!v.dr) return x;
     v.l = min(x.l * y.l, min(x.l * y.r, min(x.r * y.l, x.r * y.r)));
     v.r = max(x.l * y.l, max(x.l * y.r, max(x.r * y.l, x.r * y.r)));
@@ -74,8 +85,9 @@ struct interval exprMulC(struct interval x, double c)
 {
     struct interval v;
     double          l = x.l * c, r = x.r * c;
-    v.dl = x.dl;
-    v.dr = x.dr;
+    v.dl   = x.dl;
+    v.dr   = x.dr;
+    v.cont = x.cont;
     if (!v.dr) return x;
     v.l = min(l, r);
     v.r = max(l, r);
@@ -85,10 +97,18 @@ struct interval exprMulC(struct interval x, double c)
 struct interval exprInv(struct interval x)
 {
     struct interval v;
-    v.dl = x.dl;
-    v.dr = x.dr;
-    v.l  = 1 / x.r;
-    v.r  = 1 / x.l;
+    v.dl   = x.dl;
+    v.dr   = x.dr;
+    v.cont = x.cont;
+    double l, r;
+    if (x.l < 0 && x.r >= 0) {
+        l = -INFINITY, r = INFINITY;
+        v.cont = 0;
+    }
+    else
+        l = 1 / x.r, r = 1 / x.l;
+    v.l = l;
+    v.r = r;
     return v;
 }
 
@@ -138,9 +158,8 @@ struct interval exprPowBC(double a, struct interval x)
     v.dl = in && x.l && x.r;
     v.dr = in && (x.l || x.r);
     if (!v.dr) return x;
-
     v.l = min(l, r);
-    v.r = min(r, l);
+    v.r = max(l, r);
     return v;
 }
 struct interval exprPow(struct interval x, struct interval y)
@@ -165,9 +184,9 @@ struct interval exprSin(struct interval x)
     v.dr = x.dr;
     double l, p1, p2, r, t;
     l = sin(x.l), r = sin(x.r);
-    t   = ceil(2 * l / PI) * PI / 2;
-    p1  = t < x.r ? cos(t) : l;
-    p2  = t + PI < x.r ? cos(t + PI) : l;
+    t   = ceil(2 * x.l / PI) * PI / 2;
+    p1  = t < x.r ? sin(t) : l;
+    p2  = t + PI < x.r ? sin(t + PI) : l;
     v.l = min(l, min(p1, min(p2, r)));
     v.r = max(l, max(p1, max(p2, r)));
     return v;
@@ -179,7 +198,7 @@ struct interval exprCos(struct interval x)
     v.dr = x.dr;
     double l, p1, p2, r, t;
     l = cos(x.l), r = cos(x.r);
-    t   = ceil(2 * l / PI) * PI / 2;
+    t   = ceil(2 * x.l / PI) * PI / 2;
     p1  = t < x.r ? cos(t) : l;
     p2  = t + PI < x.r ? cos(t + PI) : l;
     v.l = min(l, min(p1, min(p2, r)));
@@ -354,7 +373,7 @@ double exprEval(const char* expr, int l, double x, double y)
         until_op = 1;
         l        = len;
     }
-    int    denom = 0;
+    int    denom = 0, first = 1;
     double s, p[2], c, t;
     c = s = 0.0;
     p[0] = p[1] = 1;
@@ -367,32 +386,43 @@ double exprEval(const char* expr, int l, double x, double y)
             i++;
 #if EXPR_DEBUG_LOG
         if (until_op) printf("[until op] ");
-        if (denom) printf("%d/%d) %lf + %lf/(%lf) [%lf] -%c->\n", i, l, s, p[0], p[1], c, expr[i]);
-        printf("%d/%d) %lf + (%lf)/%lf [%lf] -%c->\n", i, l, s, p[0], p[1], c, expr[i]);
+        if (denom)
+            printf("%d/%d) %lf + %lf/(%lf) [%lf] -%c->\n", i, l, s, p[0], p[1], c, expr[i]);
+        else
+            printf("%d/%d) %lf + (%lf)/%lf [%lf] -%c->\n", i, l, s, p[0], p[1], c, expr[i]);
 #endif
-        if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
-            if (until_op) break;
-            if (c != 0.0) s += p[0] / p[1];
-            p[0] = p[1] = 1, denom = 0;
-            if (expr[i] == '-')
-                p[0] = -1;
-            else if (expr[i] == '=')
-                s = -s;
-            else if (expr[i] == ')') {
-#if EXPR_DEBUG_LOG
-                printf("[bracket call] Returning %lf (%d/%d)\n", s, i, l);
-#endif
-                return s;
+        if (expr[i] == '^') {
+            i++, t = exprEval(expr, -3, x, y);
+            if (exprGetError()) return 0;
+            c = pow(c, t);
+            if (isnan(c)) {
+                error_flags |= EXPR_UNDEFINED;
+                return 0;
             }
-            else if (expr[i] == '\0')
-                return s;
-        }
-        else if (expr[i] == '/') {
-            if (until_op) break;
-            denom = 1;
         }
         else {
-            if (expr[i] == 'x')
+            if (first)
+                first = 0;
+            else
+                p[denom] *= c;
+            if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
+                if (until_op) break;
+                s += p[0] / p[1];
+                c = p[0] = p[1] = 1, denom = 0;
+                if (expr[i] == '-')
+                    p[0] = -1;
+                else if (expr[i] == '=')
+                    s = -s;
+                else if (expr[i] == ')') {
+#if EXPR_DEBUG_LOG
+                    printf("[bracket call] Returning %lf (%d/%d)\n", s, i, l);
+#endif
+                    return s;
+                }
+                else if (expr[i] == '\0')
+                    return s;
+            }
+            else if (expr[i] == 'x')
                 c = x;
             else if (expr[i] == 'y')
                 c = y;
@@ -405,21 +435,13 @@ double exprEval(const char* expr, int l, double x, double y)
                 c = strtod(expr + i, &end);
                 i = end - expr - 1;
             }
-            else if (expr[i] == '^') {
-                i++, t = exprEval(expr, -3, x, y);
-                if (exprGetError()) return 0;
-                c = pow(c, t - 1);
-                if (isnan(c)) {
-                    error_flags |= EXPR_UNDEFINED;
-                    return 0;
-                }
-            }
             else if (expr[i] == '*') {
                 if (until_op) break;
                 denom = 0;
-                t     = exprEval(expr, -3, x, y);
-                if (exprGetError()) return 0;
-                c = t;
+            }
+            else if (expr[i] == '/') {
+                if (until_op) break;
+                denom = 1;
             }
             else if (expr[i] == '(') {
                 t = exprEval(expr, bracketEnds[i++], x, y);
@@ -494,11 +516,12 @@ double exprEval(const char* expr, int l, double x, double y)
                     case EXPR_CBRT: c = cbrt(t); break;
                 }
             }
-            p[denom] *= c;
         }
 #if EXPR_DEBUG_LOG
-        if (denom) printf("%d/%d) %lf + %lf/(%lf) [%lf]\n", i, l, s, p[0], p[1], c);
-        printf("%d/%d) %lf + (%lf)/%lf [%lf]\n", i, l, s, p[0], p[1], c);
+        if (denom)
+            printf("%d/%d) %lf + %lf/(%lf) [%lf]\n", i, l, s, p[0], p[1], c);
+        else
+            printf("%d/%d) %lf + (%lf)/%lf [%lf]\n", i, l, s, p[0], p[1], c);
 #endif
     }
     if (until_op) {
@@ -520,6 +543,12 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
 #if EXPR_DEBUG_LOG
     printf("Called with l: %d\n", l);
 #endif
+    static int             f = 1;
+    static struct interval unit, zero;
+    if (f) {
+        unit = exprToInterval(1), zero = exprToInterval(0);
+        f = 0;
+    }
     static int i;
     int        until_op = 0;
     if (l == -1 || l == -2) { // new evaluation
@@ -536,32 +565,62 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
         until_op = 1;
         l        = len;
     }
-    int             denom = 0;
+    int             denom = 0, first = 1;
     struct interval s, p[2], c, t;
-    c = s = exprToInterval(1);
-    p[0] = p[1] = exprToInterval(0);
+    c = s = zero;
+    p[0] = p[1] = unit;
+#if EXPR_DEBUG_LOG
+    printf("Starting loop with l: %d, len: %d\n", l, len);
+#endif
     for (; i <= l; i++) {
         while (expr[i] == ' ')
             i++;
-        if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
-            if (until_op) break;
-            if (!(c.l == 0 && c.r == 0 && !denom)) s = exprDiv(p[0], p[1]);
-            p[0] = p[1] = exprToInterval(1), denom = 0;
-            if (expr[i] == '-')
-                p[0] = exprNeg(p[0]);
-            else if (expr[i] == '=')
-                s = exprNeg(s);
-            else if (expr[i] == ')')
-                return s;
-            else if (expr[i] == '\0')
-                return s;
-        }
-        else if (expr[i] == '/') {
-            if (until_op) break;
-            denom = 1;
+#if EXPR_DEBUG_LOG
+        if (until_op) printf("[until op] ");
+        if (denom)
+            printf("%d/%d) [%lf,%lf] + [%lf,%lf]/([%lf, %lf]) ", i, l, s.l, s.r, p[0].l, p[0].r, p[1].l, p[1].r);
+        else
+            printf("%d/%d) [%lf,%lf] + ([%lf,%lf])/[%lf, %lf] ", i, l, s.l, s.r, p[0].l, p[0].r, p[1].l, p[1].r);
+        printf(" [[%lf,%lf]] -%c->\n", c.l, c.r, expr[i]);
+#endif
+        if (expr[i] == '^') {
+            i++, t = exprEvalInterval(expr, -3, x, y);
+            if (exprIsUndef(t)) return t;
+            int bc, ec;
+            bc = exprIsConst(c), ec = exprIsConst(t);
+            if (bc && ec)
+                c = exprToInterval(pow(c.l, t.l));
+            else if (bc)
+                c = exprPowBC(c.l, t);
+            else if (ec)
+                c = exprPowEC(c, t.l);
+            else
+                c = exprPow(c, t);
         }
         else {
-            if (expr[i] == 'x') { c = x; }
+            if (first)
+                first = 0;
+            else
+                p[denom] = exprMul(p[denom], c), c = unit;
+            if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
+                if (until_op) break;
+                s = exprAdd(s, exprDiv(p[0], p[1]));
+                c = p[0] = p[1] = unit, denom = 0;
+                if (expr[i] == '-')
+                    p[0] = exprNeg(p[0]);
+                else if (expr[i] == '=')
+                    s = exprNeg(s);
+                else if (expr[i] == ')') {
+#if EXPR_DEBUG_LOG
+                    printf("[bracket call] Returning [%lf,%lf] (%d/%d)\n", s.l, s.r, i, l);
+#endif
+                    return s;
+                }
+                else if (expr[i] == '\0')
+                    return s;
+            }
+            else if (expr[i] == 'x')
+                c = x;
             else if (expr[i] == 'y')
                 c = y;
             else if (expr[i] == 'e')
@@ -573,27 +632,13 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                 c = exprToInterval(strtod(expr + i, &end));
                 i = end - expr - 1;
             }
-            else if (expr[i] == '^') {
-                i++, t = exprEvalInterval(expr, -3, x, y);
-                if (exprIsUndef(t)) return t;
-                p[denom] = exprMul(p[denom], exprInv(c));
-                int bc, ec;
-                bc = exprIsConst(c), ec = exprIsConst(t);
-                if (bc && ec)
-                    c = exprToInterval(pow(c.l, t.l));
-                else if (bc)
-                    c = exprPowBC(c.l, t);
-                else if (ec)
-                    c = exprPowEC(c, t.l);
-                else
-                    c = exprPow(c, t);
+            else if (expr[i] == '/') {
+                if (until_op) break;
+                denom = 1;
             }
             else if (expr[i] == '*') {
                 if (until_op) break;
                 denom = 0;
-                t     = exprEvalInterval(expr, -3, x, y);
-                if (exprIsUndef(t)) return t;
-                c = t;
             }
             else if (expr[i] == '(') {
                 t = exprEvalInterval(expr, bracketEnds[i++], x, y);
@@ -626,7 +671,9 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     i += 3, f = EXPR_ABS;
                 else {
                     error_flags |= EXPR_UNKNOWN_SYMBOL;
+#if EXPR_DEBUG_LOG
                     printf("ERROR: Unkown symbol at %d [%d] (l: %d)\n", i, (int)expr[i], l);
+#endif
                     return exprUndef();
                 }
                 if (expr[i] == '(')
@@ -647,28 +694,21 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     case EXPR_CBRT: c = exprCbrt(t); break;
                 }
             }
-            p[denom] = exprMul(p[denom], c);
         }
+#if EXPR_DEBUG_LOG
+        if (denom)
+            printf("%d/%d) [%lf,%lf] + [%lf,%lf]/([%lf, %lf]) ", i, l, s.l, s.r, p[0].l, p[0].r, p[1].l, p[1].r);
+        else
+            printf("%d/%d) [%lf,%lf] + ([%lf,%lf])/[%lf, %lf] ", i, l, s.l, s.r, p[0].l, p[0].r, p[1].l, p[1].r);
+        printf(" [[%lf,%lf]]\n", c.l, c.r);
+#endif
     }
     if (until_op) {
+#if EXPR_DEBUG_LOG
+        printf("[until op] Returning [%lf,%lf]\n", p[0].l, p[0].r);
+#endif
         i--;
         return p[0];
     }
     return s;
-}
-
-int main()
-{
-    clock_t start              = clock(), end;
-    char    expr[EXPR_MAX_LEN] = "y = ln abs(sin(x + sqrt(x-y))) + (x-2)^2";
-    // scanf("%[^n]", &expr);
-    // printf("expr")
-    printf("%lf\n", exprEval(expr, -1, 3, -1));
-    if (exprGetError()) printf("error flag: %d\n", exprGetError());
-    end = clock();
-    printf("Elapsed: %lf\n", (double)(end - start) / CLOCKS_PER_SEC);
-    // struct interval p = {.l = -2, .r = 2, .dl = 1, .dr = 1};
-    // struct interval r = exprPowEC(p, 1. / 2);
-    // printf("%lf, %lf\n", r.l, r.r);
-    // printf("%d, %d\n", r.dl, r.dr);
 }
