@@ -9,7 +9,7 @@ const int steps = 20;
 double    X[MAX_POINTS], Y[MAX_POINTS];
 double    graphH = 5, graphW = 5;
 
-#define GRID_SIZE 128
+#define GRID_SIZE 256
 
 char expr[256] = "";
 char expr_pos  = 0;
@@ -48,7 +48,7 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
 #define F(x, y) exprEval(expr, -2, x, y)
     const double err = 1e-5;
     double       x, y, x0, y0, F0, du, dt, dx, dy, Fx, Fy, D, d;
-    du = 1e-5;
+    du = 1e-6;
     dt = 10.0 / GRID_SIZE;
     for (int h = 0; h < GRID_SIZE; h++) {
         for (int v = 0; v < GRID_SIZE; v++) {
@@ -65,7 +65,7 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                 // iterate in the inital direction and after following the trail a while
                 // go back to the initial point and go the other way
                 // the first one is not a solution
-                int r;
+                int r, undef = 0;
                 for (i = 0; i <= MAX_POINTS; i++) {
                     if (i > 0)
                         X[i - 1] = (x + 5.0) / 10.0 * width, Y[i - 1] = (y - 5.0) / 10.0 * width + (width + height) / 2;
@@ -73,12 +73,24 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                     // improve solution in the next 3 runs
                     for (int j = 0; j <= 3; j++) {
                         Fx = (F(x + du, y) - F0) / du;
+                        if (exprGetError() & EXPR_UNDEFINED) {
+                            undef = 1;
+                            break;
+                        }
                         Fy = (F(x, y + du) - F0) / du;
+                        if (exprGetError() & EXPR_UNDEFINED) {
+                            undef = 1;
+                            break;
+                        }
                         if (j == 0) {
                             x0 = x, y0 = y; // last point
-                            if (i == 1) initX = x, initY = y;
+                            if (i == 1) {
+                                // printf("(%lf, %lf) -> (%lf, %lf)\n", x0, y0, x, y);
+                                // printf("Fx: %lf, Fy: %lf, D: %lf\n", Fx, Fy, D);
+                                initX = x, initY = y;
+                            }
                             D  = sqrt(Fx * Fx + Fy * Fy);
-                            dx = dt * Fy / D, dy = -dt * Fx / D;
+                            dx = 0.5 * dt * Fy / D, dy = -0.5 * dt * Fx / D;
                             if (!rev)
                                 x += dx, y += dy;
                             else
@@ -91,8 +103,12 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                             x -= F0 * dy / D, y += F0 * dx / D;
                         }
                         F0 = F(x, y);
+                        if (exprGetError() & EXPR_UNDEFINED) {
+                            undef = 1;
+                            break;
+                        }
                     }
-                    int isSolution = fabs(F0) < 1e-3;
+                    int isSolution = !undef && fabs(F0) < 1e-5;
                     int inBoundary = -5.0 <= x && x <= 5.0 && -5.0 <= y && y <= 5.0;
                     int overlap    = 0;
                     if (i == 0) {
@@ -111,37 +127,42 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                         int H, V;
                         H = floor((5.0 + x) / 10.0 * GRID_SIZE);
                         V = ceil((5.0 - y) / 10.0 * GRID_SIZE);
-                        if (G[H][V] == -1)
-                            n_overlap++;
-                        else
-                            n_overlap = 0;
+                        // if (G[H][V] == -1)
+                        //     n_overlap++;
+                        // else
+                        //     n_overlap = 0;
                         markDone(G, H, V, -1);
                         // if (n_overlap > 20) overlap = 1;
                     }
                     if (!isSolution || !inBoundary || overlap || i >= MAX_POINTS / 2) {
                         if (rev) {
-                            iSetColor(0, 0, 255);
-                            iPath(X + r, Y + r, i - r, 2);
+                            iSetColor(255, 0, 0);
+                            iPath(X + r, Y + r, i - r, 3);
                             break;
                         }
                         else {
-                            // reverseArray(X, i);
-                            // reverseArray(Y, i);
                             r = i;
                             iSetColor(255, 0, 0);
-                            iPath(X, Y, r, 2);
+                            iPath(X, Y, r, 3);
                             rev = 1;
                             x = initX, y = initY;
                             F0 = F(x, y);
                         }
                     }
                 }
-                if (i > 0) {}
             }
         }
     }
 #undef F
 }
+
+void drawAxii()
+{
+    iSetColor(255, 255, 255);
+    iFilledRectangle(0, height / 2 - 2, width, 4);
+    iFilledRectangle(width / 2 - 2, 0, 4, height);
+}
+
 void drawTextBox()
 {
     iSetColor(255, 255, 255);
@@ -212,6 +233,7 @@ void solveExpr()
 void iDraw()
 {
     iClear();
+    drawAxii();
     drawTextBox();
     solveExpr();
 }

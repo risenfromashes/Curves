@@ -186,13 +186,16 @@ struct interval exprSin(struct interval x)
     struct interval v;
     v.def  = x.def;
     v.cont = x.cont;
-    double l, p1, p2, r, t;
-    l = sin(x.l), r = sin(x.r);
-    t   = ceil(2 * x.l / PI) * PI / 2;
-    p1  = t < x.r ? sin(t) : l;
-    p2  = t + PI < x.r ? sin(t + PI) : l;
-    v.l = min(l, min(p1, min(p2, r)));
-    v.r = max(l, max(p1, max(p2, r)));
+    if (!isfinite(x.l) || !isfinite(x.r)) { v.l = -1, v.r = 1; }
+    else {
+        double l, p1, p2, r, t;
+        l = sin(x.l), r = sin(x.r);
+        t   = ceil(2 * x.l / PI) * PI / 2;
+        p1  = t < x.r ? sin(t) : l;
+        p2  = t + PI < x.r ? sin(t + PI) : l;
+        v.l = min(l, min(p1, min(p2, r)));
+        v.r = max(l, max(p1, max(p2, r)));
+    }
     return v;
 }
 struct interval exprCos(struct interval x)
@@ -403,29 +406,31 @@ double exprEval(const char* expr, int l, double x, double y)
                 return 0;
             }
         }
+        else if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
+            p[denom] *= c;
+            if (until_op && !(expr[i] == '-' && first)) break;
+            if (first) first = 0;
+            s += p[0] / p[1];
+            c = p[0] = p[1] = 1, denom = 0;
+            if (expr[i] == '-')
+                p[0] = -1;
+            else if (expr[i] == '=')
+                s = -s;
+            else if (expr[i] == ')') {
+#if EXPR_DEBUG_LOG
+                printf("[bracket call] Returning %lf (%d/%d)\n", s, i, l);
+#endif
+                return s;
+            }
+            else if (expr[i] == '\0')
+                return s;
+        }
         else {
             if (first)
                 first = 0;
             else
                 p[denom] *= c, c = 1;
-            if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
-                if (until_op) break;
-                s += p[0] / p[1];
-                c = p[0] = p[1] = 1, denom = 0;
-                if (expr[i] == '-')
-                    p[0] = -1;
-                else if (expr[i] == '=')
-                    s = -s;
-                else if (expr[i] == ')') {
-#if EXPR_DEBUG_LOG
-                    printf("[bracket call] Returning %lf (%d/%d)\n", s, i, l);
-#endif
-                    return s;
-                }
-                else if (expr[i] == '\0')
-                    return s;
-            }
-            else if (expr[i] == 'x')
+            if (expr[i] == 'x')
                 c = x;
             else if (expr[i] == 'y')
                 c = y;
@@ -600,29 +605,32 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
             else
                 c = exprPow(c, t);
         }
+        else if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
+            p[denom] = exprMul(p[denom], c);
+            if (until_op && !(expr[i] == '-' && first)) break;
+            if (first) first = 0;
+            s = exprAdd(s, exprDiv(p[0], p[1]));
+            c = p[0] = p[1] = unit, denom = 0;
+            if (expr[i] == '-')
+                p[0] = exprNeg(p[0]);
+            else if (expr[i] == '=')
+                s = exprNeg(s);
+            else if (expr[i] == ')') {
+#if EXPR_DEBUG_LOG
+                printf("[bracket call] Returning [%lf,%lf] (%d/%d)\n", s.l, s.r, i, l);
+#endif
+                return s;
+            }
+            else if (expr[i] == '\0')
+                return s;
+        }
         else {
             if (first)
                 first = 0;
             else
                 p[denom] = exprMul(p[denom], c), c = unit;
-            if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
-                if (until_op) break;
-                s = exprAdd(s, exprDiv(p[0], p[1]));
-                c = p[0] = p[1] = unit, denom = 0;
-                if (expr[i] == '-')
-                    p[0] = exprNeg(p[0]);
-                else if (expr[i] == '=')
-                    s = exprNeg(s);
-                else if (expr[i] == ')') {
-#if EXPR_DEBUG_LOG
-                    printf("[bracket call] Returning [%lf,%lf] (%d/%d)\n", s.l, s.r, i, l);
-#endif
-                    return s;
-                }
-                else if (expr[i] == '\0')
-                    return s;
-            }
-            else if (expr[i] == 'x')
+
+            if (expr[i] == 'x')
                 c = x;
             else if (expr[i] == 'y')
                 c = y;
