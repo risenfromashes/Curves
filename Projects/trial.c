@@ -11,11 +11,10 @@ int main()
     // if (exprGetError()) printf("error flag: %d\n", exprGetError());
     // end = clock();
     // printf("Elapsed: %lf\n", (double)(end - start) / CLOCKS_PER_SEC);
-    struct interval x = exprToInterval(0), y = exprToInterval(0);
-    x.l = 0.625, x.r = 1.25;
-    y.l = 0.664, y.r = 0.703;
-    // struct interval r = exprEvalInterval("y = sinx", -1, x, y);
-    struct interval r = exprAsin(exprCreateInterval(-1.387, -1.367));
+    struct interval x, y;
+    x                 = exprCreateInterval(-1.25, 0.0);
+    struct interval r = exprEvalInterval("pi", -1, x, y);
+    // struct interval r = exprDiv(exprTan(x), x);
     printf("%lf, %lf\n", r.l, r.r);
-    printf("%d, %d\n", r.dl, r.dr);
+    printf("%d, %d\n", r.def, r.cont);
 }

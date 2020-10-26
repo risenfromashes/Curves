@@ -42,40 +42,42 @@ static unsigned int error_flags = 0;
 
 struct interval {
     double l, r;
-    int    dl, dr; // defined?
-    int    cont;   // continuous in interval?
+    int    def;  // defined at atleast one point
+    int    cont; // continuous at all points
 };
 
-int             exprIsUndef(struct interval x) { return !x.dl && !x.dr; }
-int             exprIsConst(struct interval x) { return x.dl && x.dr && fabs(x.l - x.r) < ERR; }
+int             exprIsConst(struct interval x) { return x.def && fabs(x.l - x.r) < ERR; }
 struct interval exprCreateInterval(double l, double r)
 {
     struct interval v;
     v.l = l, v.r = r;
-    v.cont = v.dl = v.dr = 1;
+    v.cont = v.def = 1;
     return v;
 }
 struct interval exprToInterval(double x)
 {
     struct interval v;
     v.l = v.r = x;
-    v.cont = v.dl = v.dr = 1;
+    v.cont = v.def = 1;
     return v;
 }
 struct interval exprUndef()
 {
     struct interval v;
-    v.dl = v.dr = 0;
+    v.def = 0;
     return v;
 }
 
 struct interval exprMul(struct interval x, struct interval y)
 {
     struct interval v;
-    v.dl   = x.dl && x.dr && y.dl && y.dr;
-    v.dr   = (x.dl || x.dr) && (y.dl || y.dr);
+    v.def  = x.def && y.def;
     v.cont = x.cont && y.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
+    if (!x.cont)
+        return x;
+    else if (!y.cont)
+        return y;
     v.l = min(x.l * y.l, min(x.l * y.r, min(x.r * y.l, x.r * y.r)));
     v.r = max(x.l * y.l, max(x.l * y.r, max(x.r * y.l, x.r * y.r)));
     return v;
@@ -85,10 +87,9 @@ struct interval exprMulC(struct interval x, double c)
 {
     struct interval v;
     double          l = x.l * c, r = x.r * c;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     v.l = min(l, r);
     v.r = max(l, r);
     return v;
@@ -97,8 +98,7 @@ struct interval exprMulC(struct interval x, double c)
 struct interval exprInv(struct interval x)
 {
     struct interval v;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
     double l, r;
     if (x.l < 0 && x.r >= 0) {
@@ -117,10 +117,9 @@ struct interval exprDiv(struct interval x, struct interval y) { return exprMul(x
 struct interval exprAdd(struct interval x, struct interval y)
 {
     struct interval v;
-    v.dl   = x.dl && x.dr && y.dl && y.dr;
-    v.dr   = (x.dl || x.dr) && (y.dl || y.dr);
+    v.def  = x.def && y.def;
     v.cont = x.cont && y.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     v.l = x.l + y.l;
     v.r = x.r + y.r;
     return v;
@@ -128,8 +127,7 @@ struct interval exprAdd(struct interval x, struct interval y)
 struct interval exprNeg(struct interval x)
 {
     struct interval v;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
     v.l    = -x.r;
     v.r    = -x.l;
@@ -142,10 +140,9 @@ struct interval exprPowEC(struct interval x, double n)
 {
     struct interval v;
     double          l = pow(x.l, n), r = pow(x.r, n);
-    v.dl   = !isnan(l) && !isnan(r) && x.dl && x.dr;
-    v.dr   = (!isnan(l) || !isnan(r)) && (x.dl || x.dr);
+    v.def  = (!isnan(l) || !isnan(r)) && x.def; // atleast one has a defined value
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     v.l = min(l, r);
     if (x.l <= 0 && 0 <= x.r) {
         if (min(l, r) >= 0) v.l = 0;
@@ -159,12 +156,10 @@ struct interval exprPowBC(double a, struct interval x)
 
     struct interval v;
     double          l = pow(a, x.l), r = pow(a, x.r);
-    int             in = 0 <= a;
-    v.dl               = in && x.dl && x.dr;
-    v.dr               = in && (x.dl || x.dr);
-    v.cont             = x.cont;
+    v.def  = (a >= 0) && x.def;
+    v.cont = x.cont;
     if (a == 0 && x.l < 0) v.cont = 0;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     v.l = min(l, r);
     v.r = max(l, r);
     return v;
@@ -172,11 +167,9 @@ struct interval exprPowBC(double a, struct interval x)
 struct interval exprPow(struct interval x, struct interval y)
 {
     struct interval v;
-    int             lin = x.l >= 0, rin = x.r >= 0;
-    v.dl   = lin && rin && x.dl && x.dr;
-    v.dr   = (lin || rin) && (x.dl || x.dr);
+    v.def  = (x.r >= 0) && x.def;
     v.cont = x.cont && y.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     if (x.l < 0) {
         x.l = 0;
         if (y.l < 0) v.cont = 0;
@@ -191,8 +184,7 @@ struct interval exprPow(struct interval x, struct interval y)
 struct interval exprSin(struct interval x)
 {
     struct interval v;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
     double l, p1, p2, r, t;
     l = sin(x.l), r = sin(x.r);
@@ -206,8 +198,7 @@ struct interval exprSin(struct interval x)
 struct interval exprCos(struct interval x)
 {
     struct interval v;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
     double l, p1, p2, r, t;
     l = cos(x.l), r = cos(x.r);
@@ -222,8 +213,7 @@ struct interval exprTan(struct interval x)
 {
     struct interval v;
     double          l = tan(x.l), r = tan(x.r);
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
     if (l < r && x.r - x.l < PI) {
         v.l = l;
@@ -239,12 +229,9 @@ struct interval exprTan(struct interval x)
 struct interval exprAsin(struct interval x)
 {
     struct interval v;
-    int             lin = x.l <= -1 && x.r >= -1, rin = x.l <= 1 && x.r >= 1,
-        in = (-1 <= x.l && x.l <= 1) && (-1 <= x.r && x.r <= 1);
-    v.dl   = in && x.dl && x.dr;
-    v.dr   = (lin || rin) && (x.dl || x.dr);
+    v.def  = (-1 <= x.r && x.l <= 1) && x.def;
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     if (x.l < -1)
         v.l = -PI / 2;
     else
@@ -258,16 +245,14 @@ struct interval exprAsin(struct interval x)
 struct interval exprAcos(struct interval x)
 {
     struct interval v;
-    int             lin = x.r >= -1, rin = x.l <= 1, in = (-1 <= x.l && x.l <= 1) && (-1 <= x.r && x.r <= 1);
-    v.dl   = in && x.dl && x.dr;
-    v.dr   = (lin || rin) && (x.dl || x.dr);
+    v.def  = (-1 <= x.r && x.l <= 1) && x.def;
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     if (x.l < -1)
         v.r = PI;
     else
         v.r = acos(x.l);
-    if (x.r > -1)
+    if (x.r > 1)
         v.l = 0;
     else
         v.l = acos(x.r);
@@ -276,8 +261,7 @@ struct interval exprAcos(struct interval x)
 struct interval exprAtan(struct interval x)
 {
     struct interval v;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
     v.l    = atan(x.l);
     v.r    = atan(x.r);
@@ -286,11 +270,9 @@ struct interval exprAtan(struct interval x)
 struct interval exprLog(struct interval x)
 {
     struct interval v;
-    int             lin = 0 <= x.l, rin = 0 <= x.r;
-    v.dl   = lin && rin && x.dl && x.dr;
-    v.dr   = (lin || rin) && (x.dl || x.dr);
+    v.def  = (x.r >= 0) && x.def;
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     if (x.l <= 0) {
         v.l    = -INFINITY;
         v.cont = 0;
@@ -303,10 +285,9 @@ struct interval exprLog(struct interval x)
 struct interval exprAbs(struct interval x)
 {
     struct interval v;
-    v.dl   = x.dl;
-    v.dr   = x.dr;
+    v.def  = x.def;
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     double l = fabs(x.l), r = fabs(x.r);
     v.l = min(l, r);
     v.r = max(l, r);
@@ -315,11 +296,9 @@ struct interval exprAbs(struct interval x)
 struct interval exprSqrt(struct interval x)
 {
     struct interval v;
-    int             lin = 0 <= x.l, rin = 0 <= x.r;
-    v.dl   = lin && rin && x.dl && x.dr;
-    v.dr   = (lin || rin) && (x.dl || x.dr);
+    v.def  = (x.r >= 0) && x.def;
     v.cont = x.cont;
-    if (!v.dr) return v;
+    if (!v.def) return v;
     if (x.l <= 0 && 0 <= x.r)
         v.l = 0;
     else
@@ -330,8 +309,7 @@ struct interval exprSqrt(struct interval x)
 struct interval exprCbrt(struct interval x)
 {
     struct interval v;
-    v.dl     = x.dl;
-    v.dr     = x.dr;
+    v.def    = x.def;
     v.cont   = x.cont;
     double l = cbrt(x.l), r = cbrt(x.r);
     v.l = min(l, r);
@@ -610,7 +588,7 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
 #endif
         if (expr[i] == '^') {
             i++, t = exprEvalInterval(expr, -3, x, y);
-            if (exprIsUndef(t)) return t;
+            if (!t.def) return t;
             int bc, ec;
             bc = exprIsConst(c), ec = exprIsConst(t);
             if (bc && ec)
@@ -651,7 +629,7 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
             else if (expr[i] == 'e')
                 c = exprToInterval(exp(1));
             else if (!strnicmp(expr + i, "pi", 2))
-                c = exprToInterval(exp(1));
+                i++, c = exprToInterval(PI);
             else if (isdigit(expr[i]) || expr[i] == '.') {
                 char* end;
                 c = exprToInterval(strtod(expr + i, &end));
@@ -667,7 +645,7 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
             }
             else if (expr[i] == '(') {
                 t = exprEvalInterval(expr, bracketEnds[i++], x, y);
-                if (exprIsUndef(t)) return t;
+                if (!t.def) return t;
                 c = t;
             }
             else {
@@ -705,7 +683,7 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     t = exprEvalInterval(expr, bracketEnds[i++], x, y);
                 else
                     t = exprEvalInterval(expr, -3, x, y);
-                if (exprIsUndef(t)) return t;
+                if (!t.def) return t;
                 switch (f) {
                     case EXPR_SIN: c = exprSin(t); break;
                     case EXPR_COS: c = exprCos(t); break;
