@@ -9,7 +9,7 @@ const int steps = 20;
 double    X[MAX_POINTS], Y[MAX_POINTS];
 double    graphH = 5, graphW = 5;
 
-#define GRID_SIZE 512
+#define GRID_SIZE 256
 
 char expr[256] = "";
 char expr_pos  = 0;
@@ -24,40 +24,42 @@ void reverseArray(double arr[], int n)
     }
 }
 
-// set all neighbours to zero
-void markDone(double G[GRID_SIZE][GRID_SIZE], int h, int v)
+// set all neighbours to be visited
+// f = 0 indicates no solution
+// f = -1 indicates solutions exist and it was visited
+void markDone(int G[GRID_SIZE][GRID_SIZE], int h, int v, int f)
 {
-    G[h][v] = 0;
+    G[h][v] = f;
     if (h > 0) {
-        G[h - 1][v] = 0;
-        if (v > 0) G[h - 1][v - 1] = G[h][v - 1] = 0;
-        if (v < GRID_SIZE - 1) G[h - 1][v + 1] = G[h][v + 1] = 0;
+        G[h - 1][v] = f;
+        if (v > 0) G[h - 1][v - 1] = G[h][v - 1] = f;
+        if (v < GRID_SIZE - 1) G[h - 1][v + 1] = G[h][v + 1] = f;
     }
     if (h < GRID_SIZE - 1) {
-        G[h + 1][v] = 0;
-        if (v > 0) G[h + 1][v - 1] = 0;
-        if (v < GRID_SIZE - 1) G[h + 1][v + 1] = 0;
+        G[h + 1][v] = f;
+        if (v > 0) G[h + 1][v - 1] = f;
+        if (v < GRID_SIZE - 1) G[h + 1][v + 1] = f;
     }
 }
 
 // ref: http://web.mit.edu/18.06/www/Spring17/Multidimensional-Newton.pdf
-void trace(double G[GRID_SIZE][GRID_SIZE])
+void trace(int G[GRID_SIZE][GRID_SIZE])
 {
 #define F(x, y) exprEval(expr, -2, x, y)
-    const double err = 1e-7;
+    const double err = 1e-5;
     double       x, y, x0, y0, F0, du, dt, dx, dy, Fx, Fy, D, d;
     du = 1e-5;
     dt = 10.0 / GRID_SIZE;
-    x = -1.5, y = 0;
     for (int h = 0; h < GRID_SIZE; h++) {
         for (int v = 0; v < GRID_SIZE; v++) {
-            if (G[h][v]) {
+            if (G[h][v] > 0) {
                 // try all the sides of the bounding box for the closest solution
-                struct point tl, tr, bl, br;
-                double       l, r, t, b, Fmin;
+                double l, r, t, b, Fmin = 1; // we don't accept solutions with F greater than 1e-5 anyway
+                l = -5.0 + 10.0 * h / GRID_SIZE;
+                t = 5.0 - 10.0 * v / GRID_SIZE;
+                r = l + dt, b = t - dt;
                 struct point p[4];
                 int          i, nearest;
-                double       F0, Fx, Fy;
                 for (i = 0; i <= 3; i++) {
                     for (int j = 0; j < 4; j++) {
                         if (i == 0) {
@@ -93,27 +95,34 @@ void trace(double G[GRID_SIZE][GRID_SIZE])
                         }
                     }
                 }
-                if (fabs(Fmin) > err) {
-                    markDone(G, h, v);
+
+                double initX, initY, initDirX, initDirY;
+                int    rev = 0, n_overlap = 0;
+                F0    = Fmin;
+                initX = x = p[nearest].x, initY = y = p[nearest].y;
+                if (fabs(Fmin) > 0.001) {
+                    // printf("Fmin: %lf, (%lf, %lf)\n", Fmin, x, y);
+                    markDone(G, h, v, 0);
                     continue;
                 }
-                double initX, initY, initDirX, initDirY;
-                int    rev = 0;
-                F0         = Fmin;
-                initX = x = p[nearest].x, initY = y = p[nearest].y;
                 // iterate in the inital direction and after following the trail a while
                 // go back to the initial point and go the other way
                 for (i = 0; i < MAX_POINTS; i++) {
-                    // X[i] = height * x / 2 / 2 + width / 2, Y[i] = height * y / 2 / 2 + height / 2;
+                    X[i] = (x + 5.0) / 10.0 * width, Y[i] = (y - 5.0) / 10.0 * width + (width + height) / 2;
+                    // use the gradient to approximate the next point in the first run
+                    // improve solution in the next 3 runs
                     for (int j = 0; j <= 3; j++) {
                         Fx = (F(x + du, y) - F0) / du;
                         Fy = (F(x, y + du) - F0) / du;
                         if (j == 0) {
-                            x0 = x, y0 = y;
+                            x0 = x, y0 = y; // last point
                             D  = sqrt(Fx * Fx + Fy * Fy);
-                            dx = dt * Fy / D, dy = -dt * Fx / D;
+                            dx = 5 * dt * Fy / D, dy = -5 * dt * Fx / D;
                             if (i == 0) initDirX = dx, initDirY = dy;
-                            x += dx, y += dy;
+                            if (!rev)
+                                x += dx, y += dy;
+                            else
+                                x -= dx, y -= dy;
                         }
                         else {
                             dx = x - x0;
@@ -121,35 +130,46 @@ void trace(double G[GRID_SIZE][GRID_SIZE])
                             D  = Fx * dy - Fy * dx;
                             x -= F0 * dy / D, y += F0 * dx / D;
                         }
-                        // if (dx < 0) dx = -dx, dy = -dy;
-                        x0 = x, y0 = y;
-                        x += dx, y += dy;
-                        F0 = F(x, y);
-                        Fx = (F(x + du, y) - F0) / du;
-                        Fy = (F(x, y + du) - F0) / du;
-                        dx = x - x0;
-                        dy = y - y0;
                         F0 = F(x, y);
                     }
-                    if (fabs(F0) > err || x < -5.0 || x > 5.0 || y < -5.0 || y > 5.0 || i >= MAX_POINTS / 2) {
+                    int isSolution = fabs(F0) < err;
+                    int inBoundary = -5.0 <= x && x <= 5.0 && -5.0 <= y && y <= 5.0;
+                    int overlap    = 0;
+                    if (isSolution && inBoundary) {
+                        int H, V;
+                        H = floor((5.0 + x) / 10.0 * GRID_SIZE);
+                        V = ceil((5.0 - y) / 10.0 * GRID_SIZE);
+                        if (G[H][V] == -1)
+                            n_overlap++;
+                        else
+                            n_overlap = 0;
+                        markDone(G, H, V, -1);
+                        if (n_overlap > 10) overlap = 1;
+                    }
+                    if (!isSolution || !inBoundary || overlap || i >= MAX_POINTS / 2) {
                         if (rev)
                             break;
                         else {
                             reverseArray(X, i + 1);
                             reverseArray(Y, i + 1);
                             rev = 1;
-                            x = initX - initDirX, y = initY - initDirY;
+                            x = initX, y = initY;
+                            F0 = F(x, y);
                         }
                     }
                 }
+                iSetColor(255, 0, 0);
+                // for (int j = 0; j < i; j++)
+                //     printf("(%lf, %lf)\n", X[j], Y[j]);
+                iPath(X, Y, i, 2);
             }
         }
     }
 #undef F
-    iPath(X, Y, steps, 2);
 }
 void drawTextBox()
 {
+    iSetColor(255, 255, 255);
     iRectangle(0, 0, width, 36);
     iText(10, 10, expr, GLUT_BITMAP_HELVETICA_18);
 }
@@ -185,12 +205,7 @@ void solveExpr()
                         //            r.cont);
                         if (r.def && (r.l <= 0 && 0 <= r.r)) {
                             if (P == GRID_SIZE) {
-                                if (r.cont && isfinite(r.l) && isfinite(r.r)) {
-                                    G[h][v]  = 1;
-                                    double d = (double)width / GRID_SIZE;
-                                    double x = h * d, y = -v * d + (width + height) / 2.0;
-                                    iRectangle(x, y - d, d, d);
-                                }
+                                if (r.cont && isfinite(r.l) && isfinite(r.r)) G[h][v] = 1;
                             }
                             else {
                                 int d       = GRID_SIZE / P / 2;
@@ -200,6 +215,17 @@ void solveExpr()
                         else
                             G[h][k] = 0;
                     }
+                }
+            }
+        }
+        trace(G);
+        for (int h = 0; h < GRID_SIZE; h++) {
+            for (int v = 0; v < GRID_SIZE; v++) {
+                if (G[h][v]) {
+                    double d = (double)width / GRID_SIZE;
+                    double x = h * d, y = -v * d + (width + height) / 2.0;
+                    iSetColorEx(255, 255, 255, 0.1);
+                    iRectangle(x, y - d, d, d);
                 }
             }
         }
