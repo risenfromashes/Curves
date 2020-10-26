@@ -9,7 +9,9 @@ const int steps = 20;
 double    X[MAX_POINTS], Y[MAX_POINTS];
 double    graphH = 5, graphW = 5;
 
-#define GRID_SIZE 256
+#define GRID_SIZE 512
+
+int G[GRID_SIZE][GRID_SIZE];
 
 char expr[256] = "";
 char expr_pos  = 0;
@@ -27,7 +29,7 @@ void reverseArray(double arr[], int n)
 // set all neighbours to be visited
 // f = 0 indicates no solution
 // f = -1 indicates solutions exist and it was visited
-void markDone(int G[GRID_SIZE][GRID_SIZE], int h, int v, int f)
+void markDone(int h, int v, int f)
 {
     G[h][v] = f;
     if (h > 0) {
@@ -43,7 +45,7 @@ void markDone(int G[GRID_SIZE][GRID_SIZE], int h, int v, int f)
 }
 
 // ref: http://web.mit.edu/18.06/www/Spring17/Multidimensional-Newton.pdf
-void trace(int G[GRID_SIZE][GRID_SIZE])
+void trace()
 {
 #define F(x, y) exprEval(expr, -2, x, y)
     const double err = 1e-5;
@@ -84,11 +86,7 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                         }
                         if (j == 0) {
                             x0 = x, y0 = y; // last point
-                            if (i == 1) {
-                                // printf("(%lf, %lf) -> (%lf, %lf)\n", x0, y0, x, y);
-                                // printf("Fx: %lf, Fy: %lf, D: %lf\n", Fx, Fy, D);
-                                initX = x, initY = y;
-                            }
+                            if (i == 1) initX = x, initY = y;
                             D  = sqrt(Fx * Fx + Fy * Fy);
                             dx = 0.5 * dt * Fy / D, dy = -0.5 * dt * Fx / D;
                             if (!rev)
@@ -114,7 +112,7 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                     if (i == 0) {
                         iSetColorEx(0, 255, 0, 0.5);
                         // printf("(%lf, %lf) -> (%lf, %lf)\n", x0, y0, x, y);
-                        iCircle((x + 5.0) / 10.0 * width, (y - 5.0) / 10.0 * width + (width + height) / 2, 10);
+                        iCircle((initX + 5.0) / 10.0 * width, (initY - 5.0) / 10.0 * width + (width + height) / 2, 10);
                         if (!isSolution) {
                             // markDone(G, h, v, 0);
                             G[h][v] = 0;
@@ -127,24 +125,25 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                         int H, V;
                         H = floor((5.0 + x) / 10.0 * GRID_SIZE);
                         V = ceil((5.0 - y) / 10.0 * GRID_SIZE);
-                        // if (G[H][V] == -1)
-                        //     n_overlap++;
-                        // else
-                        //     n_overlap = 0;
-                        markDone(G, H, V, -1);
-                        // if (n_overlap > 20) overlap = 1;
+                        if (G[H][V] == -1)
+                            n_overlap++;
+                        else
+                            n_overlap = 0;
+                        markDone(H, V, -1);
+                        // if (n_overlap > 100) overlap = 1;
                     }
-                    if (!isSolution || !inBoundary || overlap || i >= MAX_POINTS / 2) {
+                    if (!isSolution || !inBoundary || overlap || (!rev && i >= MAX_POINTS / 2)) {
                         if (rev) {
                             iSetColor(255, 0, 0);
-                            iPath(X + r, Y + r, i - r, 3);
+                            iPath(X + r, Y + r, i - r, 4);
                             break;
                         }
                         else {
                             r = i;
                             iSetColor(255, 0, 0);
-                            iPath(X, Y, r, 3);
-                            rev = 1;
+                            iPath(X, Y, r, 4);
+                            rev       = 1;
+                            n_overlap = 0;
                             x = initX, y = initY;
                             F0 = F(x, y);
                         }
@@ -159,8 +158,8 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
 void drawAxii()
 {
     iSetColor(255, 255, 255);
-    iFilledRectangle(0, height / 2 - 2, width, 4);
-    iFilledRectangle(width / 2 - 2, 0, 4, height);
+    iFilledRectangle(0, height / 2 - 2.5, width, 5);
+    iFilledRectangle(width / 2 - 2.5, 0, 5, height);
 }
 
 void drawTextBox()
@@ -173,8 +172,12 @@ void drawTextBox()
 void solveExpr()
 {
     if (strlen(expr) > 0) {
-        int G[GRID_SIZE][GRID_SIZE] = {1};
-        int T                       = round(log2(GRID_SIZE));
+        int n_divs = 0;
+        for (int h = 0; h < GRID_SIZE; h++)
+            for (int v = 0; v < GRID_SIZE; v++)
+                G[h][v] = 0;
+        G[0][0] = 1;
+        int T   = round(log2(GRID_SIZE));
         for (int k = 0; k <= T; k++) {
             int P = 1 << k;
             int Q = GRID_SIZE / P;
@@ -188,6 +191,7 @@ void solveExpr()
                                         y = exprCreateInterval(5.0 - 10.0 * (v + Q) / GRID_SIZE,
                                                                5.0 - 10.0 * v / GRID_SIZE);
                         struct interval r = exprEvalInterval(expr, -2 + changed, x, y);
+                        if (exprGetError()) return;
                         if (changed) changed = 0;
                         // if (changed && k < 4)
                         //     printf("([%lf,%lf],[%lf,%lf])->[%lf,%lf] <%d,%d>\n",
@@ -202,7 +206,7 @@ void solveExpr()
                         if (r.def && (r.l <= 0 && 0 <= r.r)) {
                             if (P == GRID_SIZE) {
                                 if (r.cont && isfinite(r.l) && isfinite(r.r))
-                                    G[h][v] = 1;
+                                    G[h][v] = 1, n_divs++;
                                 else
                                     G[h][v] = 0;
                             }
@@ -217,17 +221,8 @@ void solveExpr()
                 }
             }
         }
-        trace(G);
-        for (int h = 0; h < GRID_SIZE; h++) {
-            for (int v = 0; v < GRID_SIZE; v++) {
-                if (G[h][v]) {
-                    double d = (double)width / GRID_SIZE;
-                    double x = h * d, y = -v * d + (width + height) / 2.0;
-                    iSetColorEx(255, 255, 255, 0.1);
-                    iRectangle(x, y - d, d, d);
-                }
-            }
-        }
+        if ((double)n_divs / (GRID_SIZE * GRID_SIZE) > 0.05) return;
+        trace();
     }
 }
 void iDraw()
