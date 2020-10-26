@@ -407,7 +407,7 @@ double exprEval(const char* expr, int l, double x, double y)
             if (first)
                 first = 0;
             else
-                p[denom] *= c;
+                p[denom] *= c, c = 1;
             if (expr[i] == '+' || expr[i] == '-' || expr[i] == '=' || expr[i] == ')' || expr[i] == '\0') {
                 if (until_op) break;
                 s += p[0] / p[1];

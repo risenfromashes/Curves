@@ -9,7 +9,7 @@ const int steps = 20;
 double    X[MAX_POINTS], Y[MAX_POINTS];
 double    graphH = 5, graphW = 5;
 
-#define GRID_SIZE 256
+#define GRID_SIZE 128
 
 char expr[256] = "";
 char expr_pos  = 0;
@@ -53,62 +53,22 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
     for (int h = 0; h < GRID_SIZE; h++) {
         for (int v = 0; v < GRID_SIZE; v++) {
             if (G[h][v] > 0) {
-                // try all the sides of the bounding box for the closest solution
-                double l, r, t, b, Fmin = 1; // we don't accept solutions with F greater than 1e-5 anyway
+                double l, t;
                 l = -5.0 + 10.0 * h / GRID_SIZE;
                 t = 5.0 - 10.0 * v / GRID_SIZE;
-                r = l + dt, b = t - dt;
-                struct point p[4];
-                int          i, nearest;
-                for (i = 0; i <= 3; i++) {
-                    for (int j = 0; j < 4; j++) {
-                        if (i == 0) {
-                            switch (j) {
-                                case 0: // left-side
-                                    p[j].x = l, p[j].y = (t + b) / 2;
-                                    break;
-                                case 1: // right-side
-                                    p[j].x = r, p[j].y = (t + b) / 2;
-                                    break;
-                                case 2: // top-side
-                                    p[j].x = (l + r) / 2, p[j].y = t;
-                                    break;
-                                case 3: // bottom-side
-                                    p[j].x = (l + r) / 2, p[j].y = b;
-                                    break;
-                            }
-                        }
-                        else {
-                            if (j < 2) {
-                                Fy = F(p[j].x, p[j].y + du) / du;
-                                p[j].y += F0 / Fy;
-                            }
-                            else {
-                                Fx = F(p[j].x + du, p[j].y) / du;
-                                p[j].x += F0 / Fx;
-                            }
-                        }
-                        F0 = F(p[j].x, p[j].y);
-                        if (i == 3 && fabs(F0) < fabs(Fmin)) { // only take min on the last run
-                            nearest = j;
-                            Fmin    = F0;
-                        }
-                    }
-                }
 
                 double initX, initY, initDirX, initDirY;
-                int    rev = 0, n_overlap = 0;
-                F0    = Fmin;
-                initX = x = p[nearest].x, initY = y = p[nearest].y;
-                if (fabs(Fmin) > 0.001) {
-                    // printf("Fmin: %lf, (%lf, %lf)\n", Fmin, x, y);
-                    markDone(G, h, v, 0);
-                    continue;
-                }
+                int    i, rev = 0, n_overlap = 0;
+                x = l + dt / 2, y = t - dt / 2;
+                iSetColorEx(0, 0, 255, 0.5);
+                iCircle((x + 5.0) / 10.0 * width, (y - 5.0) / 10.0 * width + (width + height) / 2, 10);
                 // iterate in the inital direction and after following the trail a while
                 // go back to the initial point and go the other way
-                for (i = 0; i < MAX_POINTS; i++) {
-                    X[i] = (x + 5.0) / 10.0 * width, Y[i] = (y - 5.0) / 10.0 * width + (width + height) / 2;
+                // the first one is not a solution
+                int r;
+                for (i = 0; i <= MAX_POINTS; i++) {
+                    if (i > 0)
+                        X[i - 1] = (x + 5.0) / 10.0 * width, Y[i - 1] = (y - 5.0) / 10.0 * width + (width + height) / 2;
                     // use the gradient to approximate the next point in the first run
                     // improve solution in the next 3 runs
                     for (int j = 0; j <= 3; j++) {
@@ -116,9 +76,9 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                         Fy = (F(x, y + du) - F0) / du;
                         if (j == 0) {
                             x0 = x, y0 = y; // last point
+                            if (i == 1) initX = x, initY = y;
                             D  = sqrt(Fx * Fx + Fy * Fy);
-                            dx = 5 * dt * Fy / D, dy = -5 * dt * Fx / D;
-                            if (i == 0) initDirX = dx, initDirY = dy;
+                            dx = dt * Fy / D, dy = -dt * Fx / D;
                             if (!rev)
                                 x += dx, y += dy;
                             else
@@ -132,9 +92,21 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                         }
                         F0 = F(x, y);
                     }
-                    int isSolution = fabs(F0) < err;
+                    int isSolution = fabs(F0) < 1e-3;
                     int inBoundary = -5.0 <= x && x <= 5.0 && -5.0 <= y && y <= 5.0;
                     int overlap    = 0;
+                    if (i == 0) {
+                        iSetColorEx(0, 255, 0, 0.5);
+                        // printf("(%lf, %lf) -> (%lf, %lf)\n", x0, y0, x, y);
+                        iCircle((x + 5.0) / 10.0 * width, (y - 5.0) / 10.0 * width + (width + height) / 2, 10);
+                        if (!isSolution) {
+                            // markDone(G, h, v, 0);
+                            G[h][v] = 0;
+                            break;
+                        }
+                        else
+                            G[h][v] = -1;
+                    }
                     if (isSolution && inBoundary) {
                         int H, V;
                         H = floor((5.0 + x) / 10.0 * GRID_SIZE);
@@ -144,24 +116,27 @@ void trace(int G[GRID_SIZE][GRID_SIZE])
                         else
                             n_overlap = 0;
                         markDone(G, H, V, -1);
-                        if (n_overlap > 10) overlap = 1;
+                        // if (n_overlap > 20) overlap = 1;
                     }
                     if (!isSolution || !inBoundary || overlap || i >= MAX_POINTS / 2) {
-                        if (rev)
+                        if (rev) {
+                            iSetColor(0, 0, 255);
+                            iPath(X + r, Y + r, i - r, 2);
                             break;
+                        }
                         else {
-                            reverseArray(X, i + 1);
-                            reverseArray(Y, i + 1);
+                            // reverseArray(X, i);
+                            // reverseArray(Y, i);
+                            r = i;
+                            iSetColor(255, 0, 0);
+                            iPath(X, Y, r, 2);
                             rev = 1;
                             x = initX, y = initY;
                             F0 = F(x, y);
                         }
                     }
                 }
-                iSetColor(255, 0, 0);
-                // for (int j = 0; j < i; j++)
-                //     printf("(%lf, %lf)\n", X[j], Y[j]);
-                iPath(X, Y, i, 2);
+                if (i > 0) {}
             }
         }
     }
@@ -205,7 +180,10 @@ void solveExpr()
                         //            r.cont);
                         if (r.def && (r.l <= 0 && 0 <= r.r)) {
                             if (P == GRID_SIZE) {
-                                if (r.cont && isfinite(r.l) && isfinite(r.r)) G[h][v] = 1;
+                                if (r.cont && isfinite(r.l) && isfinite(r.r))
+                                    G[h][v] = 1;
+                                else
+                                    G[h][v] = 0;
                             }
                             else {
                                 int d       = GRID_SIZE / P / 2;
@@ -213,7 +191,7 @@ void solveExpr()
                             }
                         }
                         else
-                            G[h][k] = 0;
+                            G[h][v] = 0;
                     }
                 }
             }
