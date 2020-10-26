@@ -482,7 +482,9 @@ double exprEval(const char* expr, int l, double x, double y)
                     i += 3, f = EXPR_ABS;
                 else {
                     error_flags |= EXPR_UNKNOWN_SYMBOL;
+#if EXPR_DEBUG_LOG
                     printf("ERROR: Unkown symbol at %d [%d] (l: %d)\n", i, (int)expr[i], l);
+#endif
                     return 0;
                 }
                 if (expr[i] == '(')
@@ -722,4 +724,52 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
         return p[0];
     }
     return s;
+}
+
+static int exprIsOp(char c)
+{
+    switch (c) {
+        case '+':
+        case '-':
+        case '^':
+        case '*':
+        case '/':
+        case '=': return 1;
+    }
+    return 0;
+}
+
+int exprIsValid(const char* expr)
+{
+    int i, len, lastOp = 0, eq = 0;
+    for (i = 0; expr[i]; i++) {
+        // invalid if there are consecutive operators
+        if (expr[i] == '=') eq = 1;
+        if (exprIsOp(expr[i])) {
+            if (lastOp) return 0;
+            lastOp = 1;
+        }
+        else
+            lastOp = 0;
+    }
+    len = i;
+    if (len > 0 && eq) {
+        char f = expr[0], l = expr[len - 1];
+        switch (f) {
+            case '^':
+            case '*':
+            case '/':
+            case '=': return 0;
+        }
+        switch (l) {
+            case '+':
+            case '-':
+            case '^':
+            case '*':
+            case '/':
+            case '=': return 0;
+        }
+        return 1;
+    }
+    return 0;
 }
