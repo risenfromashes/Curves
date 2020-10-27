@@ -1,460 +1,203 @@
-#include "../iGraphics.h"
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <mmsystem.h>
-#include <windows.h>
+#include "iGraphics.h"
+#include <chrono>
 
-#define PI acos(-1.0)
-#define curves 27
+#ifndef PI
+#define PI 3.1415926535897932
+#endif
+#ifndef ERR
+#define ERR 1e-8
+#endif
 
-int total_points = 260;
-int total_curves = 0;
-int delayTime    = 100;
+#define min(x, y) ((x < y) ? (x) : (y))
+#define max(x, y) ((x > y) ? (x) : (y))
 
-// initializing the width and height
-double window_width  = 1366;
-double window_height = 768;
+struct point {
+    double x, y;
+};
 
-// base line denotes the x axis for the curves
-double base_line_x1 = 0;
-double base_line_y1 = window_height / 2;
-double base_line_x2 = window_width;
-double base_line_y2 = window_height / 2;
+static int transparent = 0;
 
-// text box parameters
-double box_bottom_left_x = 928;
-double box_bottom_left_y = 64;
-double box_length        = 310;
-double box_height        = 50;
-
-// horizontal difference between two adjacent points
-double point_dx = (base_line_x2 - base_line_x1) / total_points;
-
-// multiplicative factor for frequency and amplitude
-double frequency_change = 7.6;
-double amplitude_change = 13.25;
-
-double phase_change = 0;
-
-int    isMoving                = 1;              // 1 for running mode, 0 for pause mode
-double ball_dx                 = 7.5 * point_dx; // displacement of the balls after every delay time
-double ball_position_x         = 0;              // the initial position of the balls
-int    ball_movement_direction = 1;              // 1 for left to right movement, 0 for reversed one
-int    showWaves               = 1;              // 1 for showing the waves, 0 for not showing
-int    helpMode                = 1;              // 1 for the help mode and 0 for execution mode
-int    TextBoxActive           = 0;              // used for moving the text box
-int    PlayMode                = 0;              // waves move or not?
-
-// double ball_position_y;
-
-// randomly generated colors for all the curves
-int curve_red[curves];
-int curve_green[curves];
-int curve_blue[curves];
-
-// variables to store randomly generated color of the text box
-int textBox_red;
-int textBox_green;
-int textBox_blue;
-
-// coordinates of the texts
-double text_starting_x = 100;
-double text_starting_y = 670;
-
-// arrays for storing parameters of the waves, 0 indexed
-double allFrequency[curves];
-double allAmplitude[curves];
-double all_initial_phase[curves];
-
-// array for storing points of the resultant curve
-double resultant_y[265];
-
-// texts to display
-char number_of_waves[10];      // string that shows the total number of waves
-char waves_number_message[30]; // string that contains the entire message
-char texts[100][100] = {"PRESS THE FOLLOWING KEYS FOR EXPLORING DIFFERENT FEATURES!!!",
-                        "Toggle Between Help Mode / Execution Mode: F1",
-                        "More Curves: m / M",
-                        "Less Curves: l / L",
-                        "Pause Animation: p / P",
-                        "Resume Animation: r / R",
-                        "Increase Frequency: f",
-                        "Decrease Frequency: F",
-                        "Increase Amplitude: a",
-                        "Decrease Amplitude: A",
-                        "Increase Animation Speed: +",
-                        "Decrease Animation Speed: -",
-                        "Move Waves to Right: Left Arrow Key",
-                        "Move Waves to Left: Right Arrow Key",
-                        "Play / Pause: Space Key",
-                        "Toggle between Curves / Only Tracers: s / S"};
-
-// this function creates a string to show the total number of curves
-void numberToString()
+void iSetColorEx(double r, double g, double b, double a)
 {
-    if (total_curves < 9) {
-        number_of_waves[0] = total_curves + '0' + 1;
-        number_of_waves[1] = '\0';
-    }
-    else {
-        int temp           = total_curves + 1;
-        int digit          = temp % 10;
-        number_of_waves[1] = digit + '0';
-        temp /= 10;
-        digit              = temp % 10;
-        number_of_waves[0] = digit + '0';
-        number_of_waves[2] = '\0';
-    }
-    strcpy(waves_number_message, "Total Number of Curves: ");
-    strcat(waves_number_message, number_of_waves);
-    return;
+    double mmx = 255;
+    if (r > mmx) r = mmx;
+    if (g > mmx) g = mmx;
+    if (b > mmx) b = mmx;
+    r /= mmx;
+    g /= mmx;
+    b /= mmx;
+    glColor4f(r, g, b, a);
 }
 
-// calculates the points for all the curves given the index
-double find_y(int wave_index, double x)
+static point solve_sim_eqn(double a1, double b1, double c1, double a2, double b2, double c2)
 {
-    double y;
-    double amplitude = amplitude_change * allAmplitude[wave_index];
-    double frequency = frequency_change * allFrequency[wave_index];
-
-    double phase = phase_change + all_initial_phase[wave_index];
-
-    y = base_line_y1 + amplitude * sin(x * frequency + phase);
-
-    return y;
+    double       d = a1 * b2 - a2 * b1;
+    struct point p;
+    p.x = (b1 * c2 - b2 * c1) / d;
+    p.y = (c1 * a2 - c2 * a1) / d;
+    return p;
 }
-
-// this function draws a thicker line by drawing three parallel lines
-// isSpecial for comparatively bolder curves
-void drawThickerLine(double x1, double y1, double x2, double y2, int isSpecial)
+int isLeft(double x1, double y1, double x2, double y2, double x3, double y3)
 {
-    double dh = 1;
-    iLine(x1, y1, x2, y2);
-    iLine(x1, y1 - dh, x2, y2 - dh);
-    iLine(x1, y1 + dh, x2, y2 + dh);
-
-    if (isSpecial) {
-        // place code here
-    }
-
-    return;
+    return ((x2 - x1) * (y3 - y1) - (x3 - x1) * (y2 - y1)) > 0 ? 1 : 0;
 }
-
-void drawCurve(int wave_index)
+void iPath(double X[], double Y[], int n, double d = 1, int closed = 0)
 {
-    int red   = curve_red[wave_index];
-    int green = curve_green[wave_index];
-    int blue  = curve_blue[wave_index];
-    iSetColor(showWaves * red, showWaves * green, showWaves * blue);
-
-    for (int i = 0; i < total_points; i++) {
-        double y1 = find_y(wave_index, i * point_dx);
-        double y2 = find_y(wave_index, i * point_dx + point_dx);
-        iFilledCircle(i * point_dx, y1, 0.35);
-        if (i < total_points - 1) drawThickerLine(i * point_dx, y1, i * point_dx + point_dx, y2, 0);
-        resultant_y[i] += (y1 - base_line_y1);
-    }
-
-    return;
-}
-
-void drawResultant()
-{
-
-    iSetColor(showWaves * 255, showWaves * 255, showWaves * 255);
-
-    for (int i = 0; i < total_points; i++) {
-        iFilledCircle(i * point_dx, base_line_y1 + resultant_y[i], 0.35);
-        if (i < total_points - 1)
-            drawThickerLine(i * point_dx,
-                            base_line_y1 + resultant_y[i],
-                            i * point_dx + point_dx,
-                            base_line_y1 + resultant_y[i + 1],
-                            1);
-    }
-
-    for (int i = 0; i < total_points; i++)
-        resultant_y[i] = 0;
-    return;
-}
-
-void drawBall()
-{
-    double resultant_curve_y = 0;
-    for (int i = 0; i < total_curves; i++) {
-        iSetColor(curve_red[i], curve_green[i], curve_blue[i]);
-        double y = find_y(i, ball_position_x);
-        resultant_curve_y += (y - base_line_y1);
-        iFilledCircle(ball_position_x, y, 7.5);
-    }
-    iSetColor(255, 255, 255);
-    iFilledCircle(ball_position_x, resultant_curve_y + base_line_y1, 7.5);
-    return;
-}
-
-void BallMove()
-{
-    if (ball_movement_direction) {
-        ball_position_x += ball_dx;
-        if (ball_position_x >= window_width) {
-            ball_movement_direction = !ball_movement_direction;
-            ball_position_x -= (2 * (ball_position_x - window_width));
+    double pX[4], pY[4];
+    double dy, dx, a1, b1, c1, a2, b2, c2, M1, M2;
+    int    s1, s2;
+    point  p1, p2;
+    for (int i = 0; i < n + 2 * closed; i++) {
+        if (i == n - 1 && !closed) {
+            s2 = s2;
+            a2 = a1, b2 = b1, c2 = c1;
         }
-    }
-    else {
-        ball_position_x -= ball_dx;
-        if (ball_position_x <= 0) {
-            ball_movement_direction = !ball_movement_direction;
-            ball_position_x         = -ball_position_x;
+        else {
+            dy = Y[(i + 1) % n] - Y[i % n];
+            dx = X[(i + 1) % n] - X[i % n];
+            if (i == 0)
+                s2 = 1;
+            else {
+                s2 = (X[i % n] >= X[(i - 1) % n] && X[(i + 1) % n] >= X[i % n]) ||
+                     (X[i % n] <= X[(i - 1) % n] && X[(i + 1) % n] <= X[i % n]);
+                s2 = s1 * (2 * s2 - 1);
+            }
+            if (dx > 0)
+                a2 = -dy, b2 = dx;
+            else
+                a2 = dy, b2 = -dx;
+            c2 = -(a2 * X[i % n] + b2 * Y[i % n]);
+            M2 = sqrt(a2 * a2 + b2 * b2);
         }
+        if (i == 0 || i == n - 1 || fabs(a1 * b2 - a2 * b1) < ERR) {
+            if (!closed) {
+                a1 = b2, b1 = -a2, c1 = -(a1 * X[i % n] + b1 * Y[i % n]);
+                p1 = solve_sim_eqn(a1, b1, c1, a2, b2, c2 + s2 * d * M2 / 2),
+                p2 = solve_sim_eqn(a1, b1, c1, a2, b2, c2 - s2 * d * M2 / 2);
+            }
+        }
+        else {
+            p1 = solve_sim_eqn(a1, b1, c1 + s1 * d * M1 / 2, a2, b2, c2 + s2 * d * M2 / 2),
+            p2 = solve_sim_eqn(a1, b1, c1 - s1 * d * M1 / 2, a2, b2, c2 - s2 * d * M2 / 2);
+        }
+        pX[2] = p1.x, pY[2] = p1.y;
+        pX[3] = p2.x, pY[3] = p2.y;
+        if (i != 0 && !(closed && (i == 1 || i == n - 1))) iFilledPolygon(pX, pY, 4);
+        a1 = a2, b1 = b2, c1 = c2, M1 = M2, s1 = s2;
+        pX[1] = pX[2], pY[1] = pY[2];
+        pX[0] = pX[3], pY[0] = pY[3];
     }
-    return;
 }
 
-void addCurve()
+void iRectangleEx(double x, double y, double w, double h, double d)
 {
-    if (total_curves == 25) return;
-    total_curves++;
-    int wave_index          = total_curves - 1;
-    curve_red[wave_index]   = rand() % (240 - 25 + 1) + 25;
-    curve_green[wave_index] = rand() % (240 - 25 + 1) + 25;
-    curve_blue[wave_index]  = rand() % (240 - 25 + 1) + 25;
-
-    allFrequency[wave_index] = (rand() % (35000 - 12000 + 1) + 12000) * 1e-7;
-    allAmplitude[wave_index] = (rand() % ((int)window_height / 6 - 1 + 1) + 1) * 0.1;
-
-    all_initial_phase[wave_index] = (rand() % 62831) * 1e-4;
-
-    delayTime -= (pow(total_curves, 1.6) / 2);
-
-    return;
+    double X[] = {x, x + w, x + w, x}, Y[] = {y, y, y + h, y + h};
+    iPath(X, Y, 4, d, 0);
 }
 
-void reduceCurve()
+void iSetTransparency(int state) { transparent = (state == 0) ? 0 : 1; }
+
+double iGetTime()
 {
-    if (total_curves == 3) return;
-    total_curves--;
-
-    delayTime += (pow(total_curves, 1.6) / 2);
-
-    return;
+    static clock_t start = clock();
+    return (clock() - start) / double(CLOCKS_PER_SEC);
 }
 
-void boxColorChange()
+double iRandom(double min, double max)
 {
-
-    textBox_red   = rand() % (255 - 95 + 1) + 95;
-    textBox_blue  = rand() % (255 - 95 + 1) + 95;
-    textBox_green = rand() % (255 - 95 + 1) + 95;
-
-    return;
+    static int f = 1;
+    if (f) {
+        srand((unsigned int)time(NULL));
+        f = 0;
+    }
+    int s = 1 << 15;
+    return min + (max - min) / s * (rand() % s);
 }
 
-void iDraw()
+void iRandomColor(double S, double V, double rgb[])
 {
+    // convert to rgb from random hue HSV
+    int    d = 1 << 15;
+    double H = iRandom(0, 360);
+    double C = S * V;
+    double X = C * (1 - abs(fmod(H / 60.0, 2) - 1));
+    double m = V - C;
+    double r, g, b;
+    if (H >= 0 && H < 60) { r = C, g = X, b = 0; }
+    else if (H >= 60 && H < 120)
+        r = X, g = C, b = 0;
+    else if (H >= 120 && H < 180)
+        r = 0, g = C, b = X;
+    else if (H >= 180 && H < 240)
+        r = 0, g = X, b = C;
+    else if (H >= 240 && H < 300)
+        r = X, g = 0, b = C;
+    else
+        r = C, g = 0, b = X;
+    rgb[0] = (r + m) * 255;
+    rgb[1] = (g + m) * 255;
+    rgb[2] = (b + m) * 255;
+}
+
+void iResize(int width, int height);
+
+void resizeFF(int width, int height)
+{
+    iScreenWidth  = width;
+    iScreenHeight = height;
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    iResize(width, height);
+    glOrtho(0.0, iScreenWidth, 0.0, iScreenHeight, -1.0, 1.0);
+    glViewport(0.0, 0.0, iScreenWidth, iScreenHeight);
+    glutPostRedisplay();
+}
+
+void iInitializeEx(int width = 500, int height = 500, const char* title = "iGraphics")
+{
+
+    iScreenHeight = height;
+    iScreenWidth  = width;
+#ifdef FREEGLUT
+    int   n = 1;
+    char* p[1];
+    glutInit(&n, p);
+#endif
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_ALPHA | GLUT_MULTISAMPLE);
+
+    glutInitWindowSize(width, height);
+    glutInitWindowPosition(10, 10);
+    glutCreateWindow(title);
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0.0, width, 0.0, height, -1.0, 1.0);
+    // glOrtho(-100.0 , 100.0 , -100.0 , 100.0 , -1.0 , 1.0) ;
+    // SetTimer(0, 0, 10, timer_proc);
+
     iClear();
 
-    if (helpMode) {
-        iShowBMP(0, 0, "hello2.bmp");
-        iSetColor(123, 252, 3);
-        for (int i = 0; i < 16; i++) {
-            if (i == 0)
-                iText(text_starting_x + 200, text_starting_y + 50, texts[i], GLUT_BITMAP_TIMES_ROMAN_24);
-            else
-                iText(text_starting_x, text_starting_y - 25 * i, texts[i], GLUT_BITMAP_HELVETICA_18);
-        }
-    }
+    glutDisplayFunc(displayFF);
+    glutReshapeFunc(resizeFF);
+    glutKeyboardFunc(keyboardHandler1FF); // normal
+    glutSpecialFunc(keyboardHandler2FF);  // special keys
+    glutMouseFunc(mouseHandlerFF);
+    glutMotionFunc(mouseMoveHandlerFF);
+    glutIdleFunc(animFF);
 
-    else {
-        numberToString();
-        iSetColor(textBox_red, textBox_green, textBox_blue);
-        iRectangle(box_bottom_left_x, box_bottom_left_y, box_length, box_height);
-        iText(box_bottom_left_x + 30,
-              box_bottom_left_y + (box_height) / 2 - (box_height) / 20,
-              waves_number_message,
-              GLUT_BITMAP_TIMES_ROMAN_24);
-        iSetColor(255, 255, 0);
-        iText(1000, 75, "Drag the box to move");
-        iSetColor(showWaves * 255, showWaves * 255, showWaves * 255);
-        drawThickerLine(base_line_x1, base_line_y1, base_line_x2, base_line_y2, 1);
-
-        if (PlayMode) phase_change += PI / 15;
-
-        for (int i = 0; i < total_curves; i++)
-            drawCurve(i);
-        drawResultant();
-        drawBall();
-        //        if (isMoving) {
-        //            ballDraw(245, 15, 43, wave1_x, wave1_y, 1);
-        //            ballDraw(136, 217, 220, wave2_x, wave2_y, 1);
-        //            ballDraw(202, 149, 43, wave3_x, wave3_y, 1);
-        //            ballDraw(46, 129, 4, wave4_x, wave4_y, 1);
-        ////            ball_latest_x[5] = wave5_x[ball_position_index];
-        ////            ball_latest_y[5] = wave5_y[ball_position_index];
-        ////            ballDraw(89, 210, 120, wave5_x, wave5_y, 1, ball_latest_x[5], ball_latest_y[5]);
-        ////            ball_latest_x[6] = wave6_x[ball_position_index];
-        ////            ball_latest_y[6] = wave6_y[ball_position_index];
-        ////            ballDraw(189, 12, 40, wave6_x, wave6_y, 1, ball_latest_x[6], ball_latest_y[6]);
-        //            ballDraw(17, 141, 222, resultant_x, resultant_y, 1);
-        //        }
-        //
-        //        else {
-        //            ballDraw(245, 15, 43, wave1_x, wave1_y, 0);
-        //            ballDraw(136, 217, 220, wave2_x, wave2_y, 0);
-        //            ballDraw(202, 149, 43, wave3_x, wave3_y, 0);
-        //            ballDraw(46, 129, 4, wave4_x, wave4_y, 0);
-        ////            ballDraw(89, 210, 120, wave5_x, wave5_y, 1, ball_latest_x[5], ball_latest_y[5]);
-        ////            ballDraw(189, 12, 40, wave6_x, wave6_y, 1, ball_latest_x[6], ball_latest_y[6]);
-        //            ballDraw(17, 141, 222, resultant_x, resultant_y, 0);
-        //        }
-    }
-    return;
-}
-
-void iKeyboard(unsigned char key)
-{
-
-    if (helpMode) return;
-
-    switch (key) {
-        case 's':
-        case 'S': showWaves = !showWaves; break;
-        case 'f': frequency_change += 0.3; break;
-        case 'F':
-            frequency_change -= 0.3;
-            if (frequency_change < 0) frequency_change = 0;
-            break;
-        case 'a': amplitude_change += 0.3; break;
-        case 'A':
-            amplitude_change -= 0.3;
-            if (amplitude_change < 0) amplitude_change = 0;
-            break;
-        case '+': ball_dx += 2; break;
-        case '-':
-            ball_dx -= 2;
-            if (ball_dx < 0) ball_dx = 0;
-            break;
-        case 'p':
-        case 'P':
-            isMoving = 0;
-            iPauseTimer(0);
-            break;
-        case 'r':
-        case 'R':
-            isMoving = 1;
-            iResumeTimer(0);
-            break;
-        case 'm':
-        case 'M': addCurve(); break;
-        case 'l':
-        case 'L': reduceCurve(); break;
-        case ' ':
-            PlayMode = !PlayMode;
-            if (PlayMode)
-                iPauseTimer(0);
-            else
-                iResumeTimer(0);
-            break;
-    }
-}
-void iSpecialKeyboard(unsigned char key)
-{
-    switch (key) {
-        case GLUT_KEY_F1: helpMode = !helpMode; break;
-        case GLUT_KEY_LEFT:
-            if (!helpMode) phase_change -= PI / 12;
-            break;
-        case GLUT_KEY_RIGHT:
-            if (!helpMode) phase_change += PI / 12;
-            break;
-    }
-}
-
-void iMouseMove(int mx, int my)
-{
-    if (TextBoxActive) {
-        box_bottom_left_x = mx - 100;
-        box_bottom_left_y = my - 50;
-
-        if (box_bottom_left_x < 0)
-            box_bottom_left_x = 0;
-        else if (box_bottom_left_x + box_length > window_width)
-            box_bottom_left_x = window_width - box_length;
-        if (box_bottom_left_y < 0)
-            box_bottom_left_y = 0;
-        else if (box_bottom_left_y + box_height > window_height)
-            box_bottom_left_y = window_height - box_height;
-    }
-
-    //    int selected_index = 0;
     //
-    //    if (my > base_line_y1){
-    //        double min_y = 1e7;
-    //        for (int i=0; i<total_curves; i++){
-    //            double y_now = find_y(i, mx);
-    //            if (y_now < base_line_y1) continue;
-    //            if (y_now < min_y){
-    //                selected_index = i;
-    //                min_y = y_now;
-    //            }
-    //        }
-    //    }
+    // Setup Alpha channel testing.
+    // If alpha value is greater than 0, then those
+    // pixels will be rendered. Otherwise, they would not be rendered
     //
-    //    else if (my < base_line_y1){
-    //        double max_y = -1e7;
-    //        for (int i=0; i<total_curves; i++){
-    //            double y_now = find_y(i, mx);
-    //            if (y_now > base_line_y1) continue;
-    //            if (y_now > max_y){
-    //                selected_index = i;
-    //                max_y = y_now;
-    //            }
-    //        }
-    //    }
-    //
-    //    active_mode[selected_index] = 1;
-    //
-    //    double frequency = allFrequency[selected_index];
-    //    double amplitude = allAmplitude[selected_index];
-    //    double phase = all_initial_phase[selected_index];
-    //
-    //    allFrequency[selected_index] = (asin((my - base_line_y1)/ amplitude) - phase) / mx;
-    //    allFrequency[selected_index] /= frequency_change;
+    glAlphaFunc(GL_GREATER, 0.0f);
+    glEnable(GL_ALPHA_TEST);
 
-    //    active_mode[selected_index] = 0;
-
-    //    return;
-}
-
-void iMouse(int button, int state, int mx, int my)
-{
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        // now this condition is perfect
-        if (mx >= box_bottom_left_x && mx <= box_bottom_left_x + box_length && my >= box_bottom_left_y &&
-            my <= box_bottom_left_y + box_height && TextBoxActive == 0)
-            TextBoxActive = 1;
+    if (transparent) {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
-        if (TextBoxActive) TextBoxActive = 0;
-    }
-    if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {}
-    if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP) {}
-}
 
-int main()
-{
-
-    iSetTimer(delayTime, BallMove);
-    iSetTimer(750, boxColorChange);
-    // PlaySound("music.wav", NULL, SND_ASYNC | SND_LOOP);
-
-    for (int i = 0; i < 3; i++)
-        addCurve();
-    all_initial_phase[0] = all_initial_phase[2] = 0;
-    all_initial_phase[1]                        = PI / 2;
-
-    iInitialize(window_width, window_height, "Curve");
-
-    return 0;
+    glutMainLoop();
 }
