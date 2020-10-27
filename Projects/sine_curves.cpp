@@ -227,17 +227,7 @@ void removeSine()
         n_sines--;
     n_selected = 0;
 }
-void iResize(int width, int height)
-{
-    iScreenWidth  = width;
-    iScreenHeight = height;
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    N = iScreenWidth / dx + 2;
-    glOrtho(0.0, iScreenWidth, 0.0, iScreenHeight, -1.0, 1.0);
-    glViewport(0.0, 0.0, iScreenWidth, iScreenHeight);
-    glutPostRedisplay();
-}
+void iResize(int width, int height) {}
 void iKeyboard(unsigned char key)
 {
     static int isFullScreen = 0;
@@ -294,3 +284,15 @@ int main()
     iInitializeEx(iScreenWidth, iScreenHeight, "Demo!");
     return 0;
 }
+
+// x^2+y^2=40
+// y=arccosx
+
+// s = 1 - 2 * rev;
+// if (fabs(Fx) > 1e3)
+//     dx = s * ds, dy = 0;
+// else if (fabs(Fy) > 1e3)
+//     dx = 0, dy = s * ds;
+// else
+// dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
+// x += s * dx, y += s * dy;

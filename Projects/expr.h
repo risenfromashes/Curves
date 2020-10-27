@@ -746,7 +746,11 @@ int exprIsValid(const char* expr)
         // invalid if there are consecutive operators
         if (expr[i] == '=') eq = 1;
         if (exprIsOp(expr[i])) {
-            if (lastOp) return 0;
+            if (lastOp) {
+                if (expr[i] == '+' || expr[i] == '-') {
+                    if (expr[i - 1] == '+' || expr[i - 1] == '-') return 0;
+                }
+            }
             lastOp = 1;
         }
         else

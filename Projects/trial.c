@@ -3,10 +3,10 @@
 
 int main()
 {
-    char expr[EXPR_MAX_LEN] = "x^2-y^2=1";
+    char expr[EXPR_MAX_LEN] = " y=arccosx ";
     // scanf("%[^n]", &expr);
     // printf("expr")
-    printf("%lf\n", exprEval(expr, -1, 2, 1));
+    printf("%lf\n", exprEval(expr, -1, 1, 1));
     if (exprGetError()) printf("error flag: %d\n", exprGetError());
     // struct interval x, y;
     // x                 = exprCreateInterval(-1.25, 0.0);
