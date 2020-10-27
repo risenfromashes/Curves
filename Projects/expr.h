@@ -203,13 +203,16 @@ struct interval exprCos(struct interval x)
     struct interval v;
     v.def  = x.def;
     v.cont = x.cont;
-    double l, p1, p2, r, t;
-    l = cos(x.l), r = cos(x.r);
-    t   = ceil(2 * x.l / PI) * PI / 2;
-    p1  = t < x.r ? cos(t) : l;
-    p2  = t + PI < x.r ? cos(t + PI) : l;
-    v.l = min(l, min(p1, min(p2, r)));
-    v.r = max(l, max(p1, max(p2, r)));
+    if (!isfinite(x.l) || !isfinite(x.r)) { v.l = -1, v.r = 1; }
+    else {
+        double l, p1, p2, r, t;
+        l = cos(x.l), r = cos(x.r);
+        t   = ceil(2 * x.l / PI) * PI / 2;
+        p1  = t < x.r ? cos(t) : l;
+        p2  = t + PI < x.r ? cos(t + PI) : l;
+        v.l = min(l, min(p1, min(p2, r)));
+        v.r = max(l, max(p1, max(p2, r)));
+    }
     return v;
 }
 struct interval exprTan(struct interval x)
@@ -325,6 +328,7 @@ static int len, bracketEnds[EXPR_MAX_LEN + 1];
 static int exprMatchBrackets(const char* expr)
 {
     int i, r;
+    len = strlen(expr);
     for (i = len - 1, r = -1; i >= 0; i--) {
         if (expr[i] == ')')
             bracketEnds[i] = r, r = i;
@@ -354,6 +358,7 @@ static int exprMatchBrackets(const char* expr)
     return 1;
 }
 
+// Evaluates expression
 // l = -1 indicates the string is new and its the first call
 // l = -2 indicates its the same as the one in the last call
 // l = -3 indicates until_op
@@ -365,12 +370,11 @@ double exprEval(const char* expr, int l, double x, double y)
 #endif
     static int i;
     int        until_op = 0;
-    if (l == -1 || l == -2) { // new evaluation
-        i = 0;                // reset counter
-        error_flags &= 3;     // clear point specific flags
-        if (l == -1) {        // if string is new
-            error_flags = 0;  // clear all flags
-            len         = strlen(expr);
+    if (l == -1 || l == -2) {                       // new evaluation
+        i = 0;                                      // reset counter
+        error_flags &= 3;                           // clear point specific flags
+        if (l == -1) {                              // if string is new
+            error_flags = 0;                        // clear all flags
             if (!exprMatchBrackets(expr)) return 0; // remember bracket endings
         }
         l = len;
@@ -415,7 +419,7 @@ double exprEval(const char* expr, int l, double x, double y)
             if (expr[i] == '-')
                 p[0] = -1;
             else if (expr[i] == '=')
-                s = -s;
+                s = -s, c = 0, first = 1;
             else if (expr[i] == ')') {
 #if EXPR_DEBUG_LOG
                 printf("[bracket call] Returning %lf (%d/%d)\n", s, i, l);
@@ -561,12 +565,11 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
     }
     static int i;
     int        until_op = 0;
-    if (l == -1 || l == -2) { // new evaluation
-        i = 0;                // reset counter
-        error_flags &= 3;     // clear point specific flags
-        if (l == -1) {        // if string is new
-            error_flags = 0;  // clear all flags
-            len         = strlen(expr);
+    if (l == -1 || l == -2) {        // new evaluation
+        i = 0;                       // reset counter
+        error_flags &= 3;            // clear point specific flags
+        if (l == -1) {               // if string is new
+            error_flags = 0;         // clear all flags
             exprMatchBrackets(expr); // remember bracket endings
         }
         l = len;
@@ -616,7 +619,7 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
             if (expr[i] == '-')
                 p[0] = exprNeg(p[0]);
             else if (expr[i] == '=')
-                s = exprNeg(s);
+                s = exprNeg(s), c = zero, first = 1;
             else if (expr[i] == ')') {
 #if EXPR_DEBUG_LOG
                 printf("[bracket call] Returning [%lf,%lf] (%d/%d)\n", s.l, s.r, i, l);
@@ -757,7 +760,7 @@ int exprIsValid(const char* expr)
             lastOp = 0;
     }
     len = i;
-    if (len > 0 && eq) {
+    if (len > 0 && eq == 1) {
         char f = expr[0], l = expr[len - 1];
         switch (f) {
             case '^':
@@ -773,7 +776,218 @@ int exprIsValid(const char* expr)
             case '/':
             case '=': return 0;
         }
-        return 1;
+        return exprMatchBrackets(expr);
     }
     return 0;
+}
+
+static int exprScreenWidth = 1280, exprScreenHeight = 720;
+
+void exprSetScreenRes(int w, int h) { exprScreenWidth = w, exprScreenHeight = h; }
+
+#define EXPR_MAX_POINTS 4096
+
+static double exprCurveX[EXPR_MAX_POINTS + 10], exprCurveY[EXPR_MAX_POINTS + 10];
+
+// limit of the graph space surrounding the origin
+static double rX = 5, lX = -5, tY = 5, bY = -5;
+
+#define EXPR_GRID_SIZE 256
+
+static int G[EXPR_GRID_SIZE + 10][EXPR_GRID_SIZE + 10];
+
+void exprScale(double del)
+{
+    if ((del < 0.0 && rX - lX > 0.5 && tY - bY > 0.5) || (del > 0.0 && rX - lX < 50.0 && tY - bY < 50.0)) {
+        lX -= del, rX += del;
+        bY -= del, tY += del;
+    }
+}
+
+static int    getGridH(double x) { return floor((x - lX) / (rX - lX) * EXPR_GRID_SIZE); }
+static int    getGridV(double y) { return ceil((tY - y) / (tY - bY) * EXPR_GRID_SIZE); }
+static double getScreenX(double x) { return (x - lX) / (rX - lX) * exprScreenWidth; }
+static double getScreenY(double y)
+{
+    return (y - tY) / (tY - bY) * exprScreenWidth + (exprScreenWidth + exprScreenHeight) / 2.0;
+}
+static double getGridMidX(int h) { return lX + (rX - lX) * (h + 0.5) / EXPR_GRID_SIZE; }
+static double getGridMidY(int v) { return tY - (tY - bY) * (v + 0.5) / EXPR_GRID_SIZE; }
+
+static void markDone(int h, int v, int f)
+{
+    G[h][v] = f;
+    if (h > 0) {
+        G[h - 1][v] = f;
+        if (v > 0) G[h - 1][v - 1] = G[h][v - 1] = f;
+        if (v < EXPR_GRID_SIZE - 1) G[h - 1][v + 1] = G[h][v + 1] = f;
+    }
+    if (h < EXPR_GRID_SIZE - 1) {
+        G[h + 1][v] = f;
+        if (v > 0) G[h + 1][v - 1] = f;
+        if (v < EXPR_GRID_SIZE - 1) G[h + 1][v + 1] = f;
+    }
+}
+
+// ref: http://web.mit.edu/18.06/www/Spring17/Multidimensional-Newton.pdf
+static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[], int))
+{
+#define F(x, y) exprEval(expr, -2, x, y)
+    const double err = 1e-7;
+    double       x, y, x0, y0, F0, du, ds, dx, dy, Fx, Fy, D, d;
+    du = 1e-6;
+    ds = min(rX - lX, tY - bY) / EXPR_GRID_SIZE / 2.0;
+    for (int h = 0; h < EXPR_GRID_SIZE; h++) {
+        for (int v = 0; v < EXPR_GRID_SIZE; v++) {
+            if (G[h][v] > 0) {
+                double initX, initY;
+                int    i, j, H, V, rev = 0, n_overlap = 0;
+                x = getGridMidX(h), y = getGridMidY(v);
+                // iSetColorEx(0, 0, 255, 0.5);
+                // iCircle(getScreenX(x), getScreenY(y), 10);
+                // iterate in the inital direction and after following the trail a while
+                // go back to the initial point and go the other way
+                // the first one is not a solution
+                int s, r, undef = 0;
+                for (i = 0; i <= EXPR_MAX_POINTS; i++) {
+                    if (i > 0) {
+                        exprCurveX[i - 1] = getScreenX(x), exprCurveY[i - 1] = getScreenY(y);
+                        if (i == 1) initX = x, initY = y;
+                    }
+                    for (j = 0; j <= 3; j++) {
+                        Fx = (F(x + du, y) - F0) / du;
+                        if (exprGetError() & EXPR_UNDEFINED) {
+                            undef = 1;
+                            break;
+                        }
+                        Fy = (F(x, y + du) - F0) / du;
+                        if (exprGetError() & EXPR_UNDEFINED) {
+                            undef = 1;
+                            break;
+                        }
+                        if (j == 0) {
+                            // use the gradient to approximate the next point in the first run
+                            x0 = x, y0 = y; // last point
+                            D  = sqrt(Fx * Fx + Fy * Fy);
+                            dx = ds * Fy / D, dy = -ds * Fx / D;
+                            s = 1 - 2 * rev;
+                            if (fabs(Fx) > 1e5)
+                                dx = s * ds, dy = 0;
+                            else if (fabs(Fy) > 1e5)
+                                dx = 0, dy = s * ds;
+                            else
+                                dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
+                            x += dx, y += dy;
+                        }
+                        else {
+                            // improve solution in the next 3 runs
+                            dx = x - x0;
+                            dy = y - y0;
+                            D  = Fx * dy - Fy * dx; // this will fail for unit slopes and some other cases maybe
+                            // so try to find solutions with the same distance on the x-direction then
+                            if (fabs(D) < 1e-7) {
+                                if (fabs(Fy) < 1e5)
+                                    y += F0 / Fy;
+                                else
+                                    x += F0 / Fx; // what if both fails?
+                            }
+                            else
+                                x -= F0 * dy / D, y += F0 * dx / D;
+                        }
+                        F0 = F(x, y);
+                        if (exprGetError() & EXPR_UNDEFINED) {
+                            undef = 1;
+                            break;
+                        }
+                    }
+                    int isSolution = !undef && (fabs(F0) < 1e-5);
+                    int inBoundary = lX <= x && x <= rX && bY <= y && y <= tY;
+                    if (i == 0) {
+                        // iSetColorEx(0, 255, 0, 0.5);
+                        // iCircle(getScreenX(initX), getScreenY(initY), 10);
+                    }
+                    H = getGridH(x), V = getGridV(y);
+                    if (inBoundary) {
+                        if (isSolution) {
+                            if (G[H][V] == -1 && i == 0)
+                                if (i == 0) break;
+                            markDone(H, V, -1);
+                        }
+                        else
+                            markDone(H, V, 0);
+                    }
+                    if (!isSolution || !inBoundary || (!rev && i >= EXPR_MAX_POINTS / 2) ||
+                        (i == EXPR_MAX_POINTS - 1)) {
+                        if (rev) {
+                            drawFunc(exprCurveX + r, exprCurveY + r, i - r);
+                            break;
+                        }
+                        else if (i > 1) {
+                            r = i;
+                            drawFunc(exprCurveX, exprCurveY, r);
+                            if (i < EXPR_MAX_POINTS - 1) {
+                                rev       = 1;
+                                n_overlap = 0;
+                                x = initX, y = initY;
+                                F0 = F(x, y);
+                            }
+                            else
+                                break;
+                        }
+                        else
+                            break;
+                    }
+                }
+            }
+        }
+    }
+#undef F
+}
+
+static int exprChanged = 0;
+void       exprUpdate() { exprChanged = 1; }
+void       exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
+{
+    if (!exprIsValid(expr)) return;
+    int n_divs = 0;
+    for (int h = 0; h < EXPR_GRID_SIZE; h++)
+        for (int v = 0; v < EXPR_GRID_SIZE; v++)
+            G[h][v] = 0;
+    G[0][0] = 1;
+    int T   = round(log2(EXPR_GRID_SIZE));
+    for (int k = 0; k <= T; k++) {
+        int P = 1 << k;
+        int Q = EXPR_GRID_SIZE / P;
+        for (int h = 0; h < EXPR_GRID_SIZE; h += Q) {
+            for (int v = 0; v < EXPR_GRID_SIZE; v += Q) {
+                // starts from top-left
+                if (G[h][v]) {
+                    struct interval x = exprCreateInterval(lX + (rX - lX) * h / EXPR_GRID_SIZE,
+                                                           lX + (rX - lX) * (h + Q) / EXPR_GRID_SIZE),
+                                    y = exprCreateInterval(tY - (tY - bY) * (v + Q) / EXPR_GRID_SIZE,
+                                                           tY - (tY - bY) * v / EXPR_GRID_SIZE);
+                    struct interval r = exprEvalInterval(expr, -1 + exprChanged, x, y);
+                    if (exprChanged) exprChanged = 0;
+                    if (exprGetError()) return;
+                    if (r.def && (r.l <= 0 && 0 <= r.r)) {
+                        if (P == EXPR_GRID_SIZE) {
+                            if (r.cont && isfinite(r.l) && isfinite(r.r))
+                                G[h][v] = 1, n_divs++;
+
+                            else
+                                G[h][v] = 0;
+                        }
+                        else {
+                            int d       = EXPR_GRID_SIZE / P / 2;
+                            G[h + d][v] = G[h + d][v + d] = G[h][v + d] = 1;
+                        }
+                    }
+                    else
+                        G[h][v] = 0;
+                }
+            }
+        }
+    }
+    if ((double)n_divs / (EXPR_GRID_SIZE * EXPR_GRID_SIZE) > 0.05) return;
+    exprTraceCurves(expr, drawFunc);
 }

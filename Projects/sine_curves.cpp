@@ -1,48 +1,47 @@
 #include "../ext.h"
-
+#include "expr.h"
 #define MAX_WIDTH 3840
 
 const int dx = 1;
 int       N;
-
-double X[MAX_WIDTH];
-int    n_sines = 0;
-double A[100], L[100], P[100], C[100][3];
-double A0[100], L0[100], P0[100], PX[100];
-int    selected[100] = {0}, n_selected = 0;
-int    clickedState = 0;
-double X0, Y0;
+int       width = 1280, height = 720;
+double    X[MAX_WIDTH + 10], Y[MAX_WIDTH + 10];
+int       n_sines = 0;
+double    A[100], L[100], P[100], C[100][3];
+double    A0[100], L0[100], P0[100], PX[100];
+int       selected[100] = {0}, n_selected = 0;
+int       clickedState = 0;
+double    X0, Y0;
 
 void drawSines()
 {
     static double pX[4], pY[4], qY[MAX_WIDTH], cY[MAX_WIDTH];
     int           crossesAxis;
-    pY[2] = pY[3] = iScreenHeight / 2;
+    pY[2] = pY[3] = height / 2;
     for (int j = 0; j <= n_sines; j++) {
         for (int i = 0; i < N; i++) {
             if (j == 0) cY[i] = 0;
             pX[2] = pX[1] = X[i];
             if (j < n_sines) {
-                qY[i] = pY[1] = iScreenHeight / 2 + A[j] * sin(2 * PI / L[j] * (X[i] - P[j]));
-                cY[i] += qY[i] - iScreenHeight / 2;
+                qY[i] = pY[1] = height / 2 + A[j] * sin(2 * PI / L[j] * (X[i] - P[j]));
+                cY[i] += qY[i] - height / 2;
                 iSetColorEx(C[j][0], C[j][1], C[j][2], 0.2);
             }
             else {
-                qY[i] = pY[1] = cY[i] += iScreenHeight / 2;
+                qY[i] = pY[1] = cY[i] += height / 2;
                 iSetColorEx(255, 255, 255, 0.1);
             }
             if (i > 0) {
-                crossesAxis = (pY[0] >= iScreenHeight / 2 && pY[1] < iScreenHeight / 2) ||
-                              (pY[0] < iScreenHeight / 2 && pY[1] >= iScreenHeight / 2);
+                crossesAxis =
+                    (pY[0] >= height / 2 && pY[1] < height / 2) || (pY[0] < height / 2 && pY[1] >= height / 2);
                 if (crossesAxis) {
                     // draw two triangles instead of a quadrilateral
                     pX[3] = pX[1], pY[3] = pY[1], pX[2] = pX[0];
-                    pX[1] = (iScreenHeight / 2 - pY[0]) * (pX[1] - pX[0]) / (pY[1] - pY[0]) + pX[0],
-                    pY[1] = iScreenHeight / 2;
+                    pX[1] = (height / 2 - pY[0]) * (pX[1] - pX[0]) / (pY[1] - pY[0]) + pX[0], pY[1] = height / 2;
                     iFilledPolygon(pX, pY, 3);
                     pX[2] = pX[0] = pX[3], pY[0] = pY[3];
                     iFilledPolygon(pX, pY, 3);
-                    pX[3] = pX[0], pY[3] = iScreenHeight / 2;
+                    pX[3] = pX[0], pY[3] = height / 2;
                     continue;
                 }
                 iFilledPolygon(pX, pY, 4);
@@ -65,7 +64,7 @@ void drawSines()
 
 void drawAxis()
 {
-    double axisX[] = {0, (double)iScreenWidth}, axisY[] = {iScreenHeight / 2.0, iScreenHeight / 2.0};
+    double axisX[] = {0, (double)width}, axisY[] = {height / 2.0, height / 2.0};
     iSetColorEx(255, 255, 255, 1);
     iPath(axisX, axisY, 2, 3);
 }
@@ -80,8 +79,8 @@ void iDraw()
 
 int selectCurve(int x, int y)
 {
-    y -= iScreenHeight / 2;
-    double Y, C, minY = iScreenHeight;
+    y -= height / 2;
+    double Y, C, minY = height;
     int    sine_index = -1;
     for (int i = 0; i <= n_sines; i++) {
         if (i < n_sines) {
@@ -127,7 +126,7 @@ void iMouseMove(int x, int y)
         int one = n_selected == 1;
         for (int i = 0; i < n_sines; i++) {
             if (selected[i]) {
-                A[i] = (y - iScreenHeight / 2) / (Y0 - iScreenHeight / 2) * A0[i];
+                A[i] = (y - height / 2) / (Y0 - height / 2) * A0[i];
                 if (one) {
                     if (fabs(PX[i] - X0) < 5) continue;
                     L[i] = L0[i] * (x - PX[i]) / (X0 - PX[i]);
@@ -200,9 +199,9 @@ void iMouse(int button, int state, int x, int y)
 
 void addSine()
 {
-    A[n_sines] = iRandom(50, iScreenHeight / 4);
-    L[n_sines] = iRandom(200, iScreenWidth / 2);
-    P[n_sines] = iRandom(0, iScreenWidth);
+    A[n_sines] = iRandom(50, height / 4);
+    L[n_sines] = iRandom(200, width / 2);
+    P[n_sines] = iRandom(0, width);
     iRandomColor(1, 1, C[n_sines]);
     n_sines++;
 }
@@ -272,8 +271,8 @@ void iSpecialKeyboard(unsigned char key)
 
 int main()
 {
-    iScreenWidth = 1280, iScreenHeight = 720;
-    N = iScreenWidth / dx + 2;
+    width = 1280, height = 720;
+    N = width / dx + 2;
     double x;
     int    i;
     for (i = 0, x = 0; x <= MAX_WIDTH; x += dx, i++)
@@ -281,18 +280,6 @@ int main()
     for (i = 0; i < 3; i++)
         addSine();
     iSetTransparency(1);
-    iInitializeEx(iScreenWidth, iScreenHeight, "Demo!");
+    iInitializeEx(width, height, "Demo!");
     return 0;
 }
-
-// x^2+y^2=40
-// y=arccosx
-
-// s = 1 - 2 * rev;
-// if (fabs(Fx) > 1e3)
-//     dx = s * ds, dy = 0;
-// else if (fabs(Fy) > 1e3)
-//     dx = 0, dy = s * ds;
-// else
-// dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
-// x += s * dx, y += s * dy;
