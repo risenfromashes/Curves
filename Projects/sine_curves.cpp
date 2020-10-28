@@ -39,6 +39,7 @@ void drawAxis();
 int  selectCurve(int x, int y);
 void addSine();
 void removeSine();
+void deselectAll();
 void drawFunction(double[], double[], int);
 void drawHandDrawnCurve();
 
@@ -74,8 +75,6 @@ void iDraw()
         for (int i = 0; i < MAX_WIDTH; i++)
             fY[i] = -INFINITY;
         if (resized || exprPlot(expr, drawFunction) && exprUpdated()) fourier();
-        // exprPlot(expr, drawFunction);
-        // fourier();
     }
     if (drawing) drawHandDrawnCurve();
     if (resized) resized = 0;
@@ -87,7 +86,7 @@ void iMouseMove(int x, int y)
 {
     if (drawMode) {
         double ds = sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0));
-        if (ds > 3.0) {
+        if (ds > 5.0) {
             drawingX[drawingIndex] = x, drawingY[drawingIndex] = y;
             drawingIndex++;
             X0 = x;
@@ -169,9 +168,7 @@ void iMouse(int button, int state, int x, int y)
             }
             else {
                 // deselect all since empty space was clicked
-                for (int j = 0; j < n_sines; j++)
-                    selected[j] = 0;
-                n_selected = 0;
+                deselectAll();
             }
         }
         else if (n_selected > 0) {
@@ -331,17 +328,22 @@ void drawSines()
             pX[3] = pX[0] = pX[1], pY[0] = pY[1];
         }
         double stroke;
+        int    dashed = 0;
         if (j < n_sines) {
             iSetColorEx(C[j][0], C[j][1], C[j][2], 1.0);
             stroke = (n_sines <= 15) ? 2 : 1;
-            if (selected[j]) stroke *= 2;
+            if (selected[j]) stroke *= 1.5;
         }
         else {
+            dashed = 1;
             iSetColorEx(255, 255, 255, 0.85);
             stroke = (n_sines <= 15) ? 2.5 : 1.5;
-            if (n_selected == n_sines) stroke *= 1.5;
+            if (n_selected == n_sines) {
+                stroke *= 1.25;
+                dashed = 0;
+            }
         }
-        iPath(X, qY, N, stroke);
+        iPath(X, qY, N, stroke, 0, dashed, 10, 5);
     }
 }
 // return 1 if just a curve is selected/ctrl-selected
@@ -488,7 +490,7 @@ void drawFunction(double X[], double Y[], int n)
 void drawHandDrawnCurve()
 {
     iSetColorEx(255, 255, 255, 1.0);
-    iPath(drawingX, drawingY, drawingIndex, 2);
+    iPath(drawingX, drawingY, drawingIndex, 3, 0, 1, 10, 5);
 }
 
 void fourier()
@@ -604,6 +606,13 @@ void drawSupOverLay()
     drawScaleMenu(supP, 40, 30, w - 75, 150);
     drawMenu("Show Tracers", w, 30, 0, 180, 1, 0);
 }
+void deselectAll()
+{
+    // deselect all since empty space was clicked
+    for (int j = 0; j < n_sines; j++)
+        selected[j] = 0;
+    n_selected = 0;
+}
 void handleSupOverlay()
 {
     int dx = X0 - overLayLeft, dy = overlayTop - Y0;
@@ -617,6 +626,7 @@ void handleSupOverlay()
         drawMode     = 1;
         drawingIndex = 0;
         overlayState = 0;
+        deselectAll();
     }
     else if (dy <= 90) {
         // scale amp
