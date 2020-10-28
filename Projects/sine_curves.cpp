@@ -1,26 +1,42 @@
+
+
+#include <complex>
 #include "../ext.h"
 #include "expr.h"
+typedef std::complex<double> complex;
+
 #define MAX_WIDTH 3840
+#define MAX_SINES 256
 
 const int dx = 1;
 int       N;
 int       width = 1280, height = 720;
 double    X[MAX_WIDTH + 10], Y[MAX_WIDTH + 10];
 int       n_sines = 0;
-double    A[100], L[100], P[100], C[100][3];
-double    A0[100], L0[100], P0[100], PX[100];
-int       selected[100] = {0}, n_selected = 0;
+double    A[MAX_SINES], L[MAX_SINES], P[MAX_SINES], C[MAX_SINES][3];
+double    A0[MAX_SINES], L0[MAX_SINES], P0[MAX_SINES], PX[MAX_SINES];
+int       selected[MAX_SINES] = {0}, n_selected = 0;
 int       clickedState = 0;
 double    X0, Y0;
 int       mX, mY;
 double    overLayLeft, overlayRight, overlayTop, overlayBottom;
 int       newOverlay = 0;
+int       drawCurves = 1;
+
+// coordinates from the user or from the grapher for fourier estimation
+double fY[MAX_WIDTH + 10];
+
+// for taking mathematical expressions
+char expr[256]     = "";
+char exprPos       = 0;
+int  takeExprInput = 0;
 
 void drawSines();
 void drawAxis();
 int  selectCurve(int x, int y);
 void addSine();
 void removeSine();
+void drawFunction(double[], double[], int);
 
 #define SUP_OVERLAY 1
 #define SIN_OVERLAY 2
@@ -30,17 +46,32 @@ int  overlayState = 0;
 void drawSupOverLay();
 void drawSinOverLay();
 void drawGenOverLay();
-int  inOverlay(int x, int y);
+void handleSupOverlay();
+void handleSinOverlay();
+void handleGenOverlay();
+void drawTextBox();
+void takeMathInput(unsigned char key);
+void fourier();
+
+int inOverlay(int x, int y);
 
 void iDraw()
 {
     iClear();
-    drawSines();
+    if (drawCurves) drawSines();
     drawAxis();
     switch (overlayState) {
         case SUP_OVERLAY: drawSupOverLay(); break;
         case SIN_OVERLAY: drawSinOverLay(); break;
         case GEN_OVERLAY: drawGenOverLay(); break;
+    }
+    if (takeExprInput) {
+        drawTextBox();
+        for (int i = 0; i < MAX_WIDTH; i++)
+            fY[i] = -INFINITY;
+        if (exprPlot(expr, drawFunction) && exprUpdated()) fourier();
+        // exprPlot(expr, drawFunction);
+        // fourier();
     }
 }
 
@@ -77,7 +108,14 @@ void iMouse(int button, int state, int x, int y)
             X0 = x, Y0 = y;
             if (button == GLUT_LEFT_BUTTON) {
                 if (overlayState) {
-                    if (inOverlay(x, y)) { return; }
+                    if (inOverlay(x, y)) {
+                        switch (overlayState) {
+                            case SUP_OVERLAY: handleSupOverlay(); break;
+                            case SIN_OVERLAY: handleSinOverlay(); break;
+                            case GEN_OVERLAY: handleGenOverlay(); break;
+                        }
+                        return;
+                    }
                     else
                         overlayState = 0;
                 }
@@ -86,22 +124,21 @@ void iMouse(int button, int state, int x, int y)
             int r          = selectCurve(x, y);
             shouldDeselect = r > 1; // should deselect others on mouse up
             if (button == GLUT_RIGHT_BUTTON) {
-                if (n_selected == n_sines)
-                    overlayState = SUP_OVERLAY;
-                else if (r > 1 || n_selected == 1)
+                if (r > 1 || n_selected == 1)
                     overlayState = SIN_OVERLAY;
+                else if (n_selected == n_sines)
+                    overlayState = SUP_OVERLAY;
                 else
                     overlayState = GEN_OVERLAY;
                 newOverlay = 1;
             }
             if (r) {
+                if (takeExprInput) takeExprInput = 0;
                 // remember mouse click position and curve states
-                for (int i = 0; i < n_sines; i++)
-                    if (selected[i]) {
-                        A0[i] = A[i], L0[i] = L[i], P0[i] = P[i];
-                        PX[i] =
-                            (2 * round(2 * (X0 - P[i]) / L[i] - 0.5) + 1) * L[i] / 4 + P[i]; // take the nearest peak;
-                    }
+                for (int i = 0; i < n_sines; i++) {
+                    A0[i] = A[i], L0[i] = L[i], P0[i] = P[i];
+                    PX[i] = (2 * round(2 * (X0 - P[i]) / L[i] - 0.5) + 1) * L[i] / 4 + P[i]; // take the nearest peak;
+                }
             }
             else {
                 // deselect all since empty space was clicked
@@ -144,13 +181,17 @@ void iResize(int w, int h)
 {
     width = w, height = h;
     N = width / dx + 2;
+    exprSetScreenRes(w, h);
 }
 void iKeyboard(unsigned char key)
 {
+    printf("%d\n", key); // find ctrl + z
+    if (takeExprInput) takeMathInput(key);
     static int isFullScreen = 0;
     switch (key) {
         case 27: // escape
-            if (isFullScreen) {
+            if (takeExprInput) { takeExprInput = 0; }
+            else if (isFullScreen) {
                 glutReshapeWindow(1280, 720);
                 isFullScreen = 0;
             }
@@ -165,7 +206,7 @@ void iKeyboard(unsigned char key)
             break;
         case 'q': exit(0); break;
         case '+':
-            if (n_sines < 100) addSine();
+            if (n_sines < MAX_SINES) addSine();
             break;
         case '-':
         case (unsigned char)127:
@@ -195,7 +236,7 @@ int main()
     int    i;
     for (i = 0, x = 0; x <= MAX_WIDTH; x += dx, i++)
         X[i] = x;
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 10; i++)
         addSine();
     iSetTransparency(1);
     iInitializeEx(width, height, "Demo!");
@@ -250,8 +291,8 @@ void drawSines()
             if (selected[j]) stroke += 2;
         }
         else {
-            iSetColorEx(255, 255, 255, 0.75);
-            stroke = 3 + 2 * (n_selected == n_sines);
+            iSetColorEx(255, 255, 255, 0.85);
+            stroke = 2.5 + 2 * (n_selected == n_sines);
         }
         iPath(X, qY, N, stroke);
     }
@@ -330,9 +371,120 @@ void removeSine()
         n_sines--;
     n_selected = 0;
 }
+
+void drawTextBox()
+{
+    iSetColor(255, 255, 255);
+    iRectangle(0, 0, width, 36);
+    iText(14, 14, expr, GLUT_BITMAP_HELVETICA_18);
+}
+
+void takeMathInput(unsigned char key)
+{
+    if (isalnum(key))
+        expr[exprPos++] = (char)key;
+    else {
+        switch (key) {
+            case 22: // Ctrl + V
+            {
+                HWND hnd = GetActiveWindow();
+                if (OpenClipboard(hnd)) {
+                    if (IsClipboardFormatAvailable(CF_TEXT)) {
+                        const char* text = (const char*)GetClipboardData(CF_TEXT);
+                        for (int i = 0; text[i]; i++)
+                            if (text[i] != ' ') expr[exprPos++] = text[i];
+                    }
+                    CloseClipboard();
+                }
+            } break;
+            case ' ':
+            case '=':
+            case '*':
+            case '/':
+            case '+':
+            case '-':
+            case '^':
+            case '.':
+            case '(':
+            case ')': expr[exprPos++] = (char)key; break;
+            case '\b':
+                if (exprPos > 0) expr[--exprPos] = '\0';
+                break;
+            default: break;
+        }
+    }
+    exprUpdate();
+}
+
+// the scale and delta factors for the overlays
+double supA, supF, supP;
+double sinA, sinF, sinP;
+
+int reverseBits(int v, int p)
+{
+    int ret = 0;
+    for (int i = 0; i < p; i++)
+        if (v & 1 << i) ret |= 1 << (p - i - 1);
+    return ret;
+}
+
+void drawFunction(double X[], double Y[], int n)
+{
+    for (int i = 0; i < n; i++) {
+        int k = (int)max(round(X[i]), 0.0);
+        fY[k] = max(Y[i], fY[k]);
+    }
+    iSetColorEx(255, 255, 255, 0.15);
+    iPath(X, Y, n, 3);
+}
+
+void fourier()
+{
+    const int N = 1024, log2 = 10;
+    double    x1, x2, y1, y2;
+
+    // interpolate points
+    int    l, lt, r, t, c;
+    double cx, dx;
+    t = 0;
+    while (!isfinite(fY[t]))
+        t++;
+    l = t, t = width - 1; // leftmost x-cord
+    while (!isfinite(fY[t]))
+        t--;
+    r = t; // rightmost x-cord
+
+    double a[MAX_SINES] = {0}, b[MAX_SINES] = {0};
+
+    double period = r - l, w;
+    w             = 2 * PI / period;
+    for (t = l + 1, lt = l; t <= r;) {
+        while (!isfinite(fY[t]))
+            t++;
+        x1 = lt - l, x2 = t - l;
+        y1 = fY[lt] - height / 2.0, y2 = fY[t] - height / 2.0;
+        dx = x2 - x1;
+        // printf("x1: %lf, x2: %lf, y1: %lf, y2: %lf, dx: %lf\n", x1, x2, y1, y2, dx);
+        for (int j = 1; j <= n_sines; j++) {
+            a[j - 1] += 2 / period * (y1 * cos(j * w * x1) + y2 * cos(j * w * x2)) * dx / 2.0;
+            b[j - 1] += 2 / period * (y1 * sin(j * w * x1) + y2 * sin(j * w * x2)) * dx / 2.0;
+        }
+        lt = t++;
+        while (!isfinite(fY[t]))
+            t++;
+    }
+    for (int i = 0; i < n_sines; i++) {
+        A[i] = sqrt(a[i] * a[i] + b[i] * b[i]);
+        L[i] = period / (i + 1);
+        P[i] = (-atan2(a[i], b[i])) * L[i] / (2 * PI) + l;
+    }
+}
+
 void drawBasicOverlay(int w, int h)
 {
     if (newOverlay) {
+        supA = supF = 1, supP = 0;
+        sinA = sinF = 1, sinP = 0;
         if (X0 + w < width)
             overLayLeft = X0, overlayRight = X0 + w;
         else
@@ -343,45 +495,144 @@ void drawBasicOverlay(int w, int h)
             overlayBottom = Y0, overlayTop = Y0 + h;
         newOverlay = 0;
     }
-    iSetColorEx(0, 0, 0, 0.75);
+    iSetColorEx(0, 0, 0, 0.85);
     iFilledRectangle(overLayLeft, overlayBottom, w, h);
-    iSetColorEx(255, 255, 255, 1.0);
-    iRectangleEx(overLayLeft, overlayBottom, w, h, 1);
+    // iSetColorEx(255, 255, 255, 1.0);
+    // iRectangleEx(overLayLeft, overlayBottom, w, h, 2.5);
 }
 
-void drawMenu(const char* text, int w, int h, int dy, int filled)
+void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int outlined)
 {
     if (filled) {
-        if (overLayLeft <= mX && mX <= overlayRight && overlayTop - dy <= mY && mY <= overlayTop - dy + h) {
+        if (overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY &&
+            mY <= overlayTop - dy + h) {
             iSetColorEx(255, 255, 255, 0.2);
-            iFilledRectangle(overLayLeft, overlayTop - dy, w, h);
+            iFilledRectangle(overLayLeft + dx, overlayTop - dy, w, h);
         }
     }
     iSetColorEx(255, 255, 255, 1);
-    iRectangleEx(overLayLeft, overlayTop - dy, w, h);
-    iText(overLayLeft + 10, overlayTop - dy + 10, text, GLUT_BITMAP_HELVETICA_12);
+    if (outlined) iLine(overLayLeft + dx, overlayTop - dy, overLayLeft + dx + w, overlayTop - dy);
+    iText(overLayLeft + dx + 10, overlayTop - dy + 10, text, GLUT_BITMAP_HELVETICA_12);
+}
+
+void drawScaleMenu(double x, int w, int h, int dx, int dy)
+{
+    char str[8];
+    snprintf(str, 8, "%0.3f", x);
+    drawMenu(str, w, h, dx, dy, 0, 0);
+    drawMenu("-", 27, h, dx - w / 2, dy, 1, 0);
+    drawMenu("+", 27, h, dx + w / 2 + 25, dy, 1, 0);
+}
+
+void drawColorPicker(int w, int h, int dx, int dy, int outlined)
+{
+    double rgb[3];
+    int    mouseInside =
+        overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY && mY <= overlayTop - dy + h;
+    for (int i = 0; i < w; i++) {
+        double H = 360 * i / w;
+        iHSVtoRGB(H, 1.0, 1.0, rgb);
+        iSetColorEx(rgb[0], rgb[1], rgb[2], 0.5 + 0.5 * mouseInside);
+        iLine(overLayLeft + i + dx, overlayTop - dy, overLayLeft + i + dx, overlayTop - dy + h);
+    }
+    if (outlined) {
+        iSetColorEx(255, 255, 255, 1);
+        iLine(overLayLeft + dx, overlayTop - dy, overLayLeft + dx + w, overlayTop - dy);
+    }
 }
 
 void drawSupOverLay()
 {
-    static int w = 300, h = 210;
+    static int w = 230, h = 210;
     drawBasicOverlay(w, h);
-    drawMenu("Approximate graph of equation", w, 30, 30, 1);
-    drawMenu("Approximate hand-drawn curve", w, 30, 60, 1);
-    drawMenu("Scale Amplitude", w, 30, 90, 0);
-    drawMenu("Scale Frequencies", w, 30, 120, 0);
-    drawMenu("Change Phase", w, 30, 150, 0);
-    drawMenu("Show Tracers", w, 30, 180, 1);
-    drawMenu("Hide Curves", w, 30, 210, 1);
+    drawMenu("Approximate graph of equation", w, 30, 0, 30, 1, 0);
+    drawMenu("Approximate hand-drawn curve", w, 30, 0, 60, 1, 0);
+    drawMenu("Scale Amplitude", w, 30, 0, 90, 0, 0);
+    drawScaleMenu(supA, 40, 30, w - 75, 90);
+    drawMenu("Scale Frequencies", w, 30, 0, 120, 0, 0);
+    drawScaleMenu(supF, 40, 30, w - 75, 120);
+    drawMenu("Change Phase", w, 30, 0, 150, 0, 0);
+    drawScaleMenu(supP, 40, 30, w - 75, 150);
+    drawMenu("Show Tracers", w, 30, 0, 180, 1, 0);
+}
+void handleSupOverlay()
+{
+    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    if (0 <= dy && dy <= 30) {
+        // graph
+        takeExprInput = 1;
+        overlayState  = 0;
+    }
+    else if (dy <= 60) {
+        // hand-draw
+    }
+    else if (dy <= 90) {
+        // scale amp
+    }
+    else if (dy <= 120) {
+        // scale freq
+    }
+    else if (dy <= 150) {
+        // change phase
+    }
+    else if (dy <= 180) {
+        // show/hide tracers
+    }
 }
 void drawSinOverLay()
 {
-    static int w = 200, h = 300;
+    static int w = 230, h = 200;
     drawBasicOverlay(w, h);
+    drawMenu("Change Color", w, 30, 0, 30, 0, 0);
+    drawColorPicker(w, 20, 0, 50, 0);
+    drawMenu("Scale Amplitude", w, 30, 0, 80, 0, 0);
+    drawScaleMenu(sinA, 40, 30, w - 75, 80);
+    drawMenu("Scale Frequencies", w, 30, 0, 110, 0, 0);
+    drawScaleMenu(sinF, 40, 30, w - 75, 110);
+    drawMenu("Change Phase", w, 30, 0, 140, 0, 0);
+    drawScaleMenu(sinP, 40, 30, w - 75, 140);
+    drawMenu("Show Tracer", w, 30, 0, 170, 1, 0);
+    drawMenu("Remove Curve", w, 30, 0, 200, 1, 0);
 }
+void handleSinOverlay() {}
 void drawGenOverLay()
 {
-    static int w = 200, h = 300;
+    static int w = 250, h = 180;
     drawBasicOverlay(w, h);
+    drawMenu("Select All Curves", w, 30, 0, 30, 1, 0);
+    drawMenu("Add Curve", w, 30, 0, 60, 1, 0);
+    drawMenu("Change Tracer Speed", w, 30, 0, 90, 1, 0);
+    drawScaleMenu(sinP, 40, 30, w - 73, 90);
+    drawMenu("Resume Tracers", w, 30, 0, 120, 1, 0);
+    if (drawCurves)
+        drawMenu("Hide Curves", w, 30, 0, 150, 1, 0);
+    else
+        drawMenu("Show Curves", w, 30, 0, 150, 1, 0);
+    drawMenu("Show Help", w, 30, 0, 180, 1, 0);
+}
+void handleGenOverlay()
+{
+    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    if (0 <= dy && dy <= 30) {
+        // select all
+    }
+    else if (dy <= 60) {
+        addSine();
+        overlayState = 0;
+    }
+    else if (dy <= 90) {
+        // change tracer speed
+    }
+    else if (dy <= 120) {
+        // resume tracer
+    }
+    else if (dy <= 150) {
+        // show/hide curves
+        drawCurves   = !drawCurves;
+        overlayState = 0;
+    }
+    else if (dy <= 180) {
+        // show/hide tracers
+    }
 }
 int inOverlay(int x, int y) { return overLayLeft <= x && x <= overlayRight && overlayBottom <= y && y <= overlayTop; }

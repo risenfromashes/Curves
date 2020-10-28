@@ -944,11 +944,17 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
 #undef F
 }
 
-static int exprChanged = 0;
-void       exprUpdate() { exprChanged = 1; }
-void       exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
+static int exprChanged = 0, exprChangedExt = 0;
+void       exprUpdate() { exprChanged = exprChangedExt = 1; }
+int        exprUpdated()
 {
-    if (!exprIsValid(expr)) return;
+    int ret = exprChangedExt && !exprChanged;
+    if (ret) exprChangedExt = 0;
+    return ret;
+}
+int exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
+{
+    if (!exprIsValid(expr)) return 0;
     int n_divs = 0;
     for (int h = 0; h < EXPR_GRID_SIZE; h++)
         for (int v = 0; v < EXPR_GRID_SIZE; v++)
@@ -968,7 +974,7 @@ void       exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
                                                            tY - (tY - bY) * v / EXPR_GRID_SIZE);
                     struct interval r = exprEvalInterval(expr, -1 + exprChanged, x, y);
                     if (exprChanged) exprChanged = 0;
-                    if (exprGetError()) return;
+                    if (exprGetError()) return 0;
                     if (r.def && (r.l <= 0 && 0 <= r.r)) {
                         if (P == EXPR_GRID_SIZE) {
                             if (r.cont && isfinite(r.l) && isfinite(r.r))
@@ -988,6 +994,7 @@ void       exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
             }
         }
     }
-    if ((double)n_divs / (EXPR_GRID_SIZE * EXPR_GRID_SIZE) > 0.05) return;
+    if ((double)n_divs / (EXPR_GRID_SIZE * EXPR_GRID_SIZE) > 0.05) return 0;
     exprTraceCurves(expr, drawFunc);
+    return 1;
 }
