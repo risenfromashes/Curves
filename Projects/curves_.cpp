@@ -37,9 +37,13 @@ void iDraw()
     //     pX[3] = pX[0] = pX[1], pY[0] = pY[1];
     // }
     iClear();
-    iSetColorEx(255, 0, 0, 1);
-    iRectangleEx(200, height / 2 - 100, 400, 200, 10);
+    // iSetColorEx(255, 0, 0, 1);
+    // iRectangleEx(200, height / 2 - 100, 400, 200, 10);
+
+    double X[] = {200, 800, 800, 200}, Y[] = {height / 2 - 100, height / 2 - 100, height / 2 + 100, height / 2 + 100};
+    iPath(X, Y, 4, 10, 1, 1, 80, 20, 1);
 }
+void iPassiveMouseMove(int, int) {}
 void iResize(int x, int y) {}
 void iMouseMove(int mx, int my)
 {
