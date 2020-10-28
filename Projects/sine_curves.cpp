@@ -22,10 +22,13 @@ int       mX, mY;
 double    overLayLeft, overlayRight, overlayTop, overlayBottom;
 int       newOverlay = 0;
 int       drawCurves = 1;
+int       resized    = 0;
 
+int drawMode = 0, drawing = 0;
 // coordinates from the user or from the grapher for fourier estimation
 double fY[MAX_WIDTH + 10];
-
+double drawingX[MAX_WIDTH + 10], drawingY[MAX_WIDTH + 10];
+int    drawingIndex;
 // for taking mathematical expressions
 char expr[256]     = "";
 char exprPos       = 0;
@@ -37,6 +40,7 @@ int  selectCurve(int x, int y);
 void addSine();
 void removeSine();
 void drawFunction(double[], double[], int);
+void drawHandDrawnCurve();
 
 #define SUP_OVERLAY 1
 #define SIN_OVERLAY 2
@@ -69,17 +73,28 @@ void iDraw()
         drawTextBox();
         for (int i = 0; i < MAX_WIDTH; i++)
             fY[i] = -INFINITY;
-        if (exprPlot(expr, drawFunction) && exprUpdated()) fourier();
+        if (resized || exprPlot(expr, drawFunction) && exprUpdated()) fourier();
         // exprPlot(expr, drawFunction);
         // fourier();
     }
+    if (drawing) drawHandDrawnCurve();
+    if (resized) resized = 0;
 }
 
 void iPassiveMouseMove(int x, int y) { mX = x, mY = y; }
 
 void iMouseMove(int x, int y)
 {
-    if (clickedState && n_selected > 0) {
+    if (drawMode) {
+        double ds = sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0));
+        if (ds > 3.0) {
+            drawingX[drawingIndex] = x, drawingY[drawingIndex] = y;
+            drawingIndex++;
+            X0 = x;
+            Y0 = y;
+        }
+    }
+    else if (clickedState && n_selected > 0) {
         int one = n_selected == 1;
         for (int i = 0; i < n_sines; i++) {
             if (selected[i]) {
@@ -90,10 +105,12 @@ void iMouseMove(int x, int y)
                 }
                 else
                     L[i] = L0[i] * x / X0;
-                if (L[i] > 0)
-                    L[i] = max(L[i], 50);
-                else if (L[i] < 0)
-                    L[i] = min(L[i], -50);
+                if (fabs(L0[i]) > 50) {
+                    if (L[i] > 0)
+                        L[i] = max(L[i], 50);
+                    else if (L[i] < 0)
+                        L[i] = min(L[i], -50);
+                }
                 P[i] = PX[i] - L[i] / L0[i] * (PX[i] - P0[i]);
             }
         }
@@ -107,6 +124,16 @@ void iMouse(int button, int state, int x, int y)
         if (button < 3) {
             X0 = x, Y0 = y;
             if (button == GLUT_LEFT_BUTTON) {
+                if (drawMode) {
+                    for (int i = 0; i < width; i++) {
+                        fY[i] = height / 2;
+                        for (int j = 0; j < n_sines; j++)
+                            fY[i] += A[j] * sin(2 * PI / L[j] * (i - P[j]));
+                    }
+                    drawing = 1;
+                    // drawDir = 0;
+                    return;
+                }
                 if (overlayState) {
                     if (inOverlay(x, y)) {
                         switch (overlayState) {
@@ -156,6 +183,16 @@ void iMouse(int button, int state, int x, int y)
         }
     }
     else {
+        if (drawMode && drawing) {
+            drawMode = drawing = 0;
+            for (int i = 1; i < drawingIndex; i++) {
+                int s = drawingX[i] > drawingX[i - 1] ? 1 : -1;
+                for (int x = drawingX[i - 1]; x < drawingX[i]; x += s)
+                    fY[x] = (drawingY[i] - drawingY[i - 1]) / (drawingX[i] - drawingX[i - 1]) * (x - drawingX[i - 1]) +
+                            drawingY[i - 1];
+            }
+            fourier();
+        }
         if (n_selected > 0) {
             if (shouldDeselect) {
                 if (x == X0 && y == Y0) {
@@ -182,13 +219,21 @@ void iResize(int w, int h)
     width = w, height = h;
     N = width / dx + 2;
     exprSetScreenRes(w, h);
+    resized = 1;
 }
 void iKeyboard(unsigned char key)
 {
-    printf("%d\n", key); // find ctrl + z
+
     if (takeExprInput) takeMathInput(key);
     static int isFullScreen = 0;
     switch (key) {
+        case 'Z' - 'A' + 1: // ctrl + Z
+            for (int i = 0; i < n_sines; i++)
+                A[i] = A0[i], L[i] = L0[i], P[i] = P0[i];
+            break;
+        case 'G' - 'A' + 1: // ctrl + G
+            takeExprInput = !takeExprInput;
+            break;
         case 27: // escape
             if (takeExprInput) { takeExprInput = 0; }
             else if (isFullScreen) {
@@ -212,7 +257,7 @@ void iKeyboard(unsigned char key)
         case (unsigned char)127:
             if (n_sines >= 0) removeSine();
             break;
-        case 1: {
+        case 'A' - 'A' + 1: { // ctrl + A
             for (int i = 0; i < n_sines; i++)
                 selected[i] = 1;
             n_selected = n_sines;
@@ -254,6 +299,7 @@ void drawSines()
     static double pX[4], pY[4], qY[MAX_WIDTH], cY[MAX_WIDTH];
     int           crossesAxis;
     pY[2] = pY[3] = height / 2;
+    double alpha  = (n_sines <= 15) ? .2 : .1;
     for (int j = 0; j <= n_sines; j++) {
         for (int i = 0; i < N; i++) {
             if (j == 0) cY[i] = 0;
@@ -261,11 +307,11 @@ void drawSines()
             if (j < n_sines) {
                 qY[i] = pY[1] = height / 2 + A[j] * sin(2 * PI / L[j] * (X[i] - P[j]));
                 cY[i] += qY[i] - height / 2;
-                iSetColorEx(C[j][0], C[j][1], C[j][2], 0.2);
+                iSetColorEx(C[j][0], C[j][1], C[j][2], alpha);
             }
             else {
                 qY[i] = pY[1] = cY[i] += height / 2;
-                iSetColorEx(255, 255, 255, 0.1);
+                iSetColorEx(255, 255, 255, alpha / 2);
             }
             if (i > 0) {
                 crossesAxis =
@@ -287,12 +333,13 @@ void drawSines()
         double stroke;
         if (j < n_sines) {
             iSetColorEx(C[j][0], C[j][1], C[j][2], 1.0);
-            stroke = 2;
-            if (selected[j]) stroke += 2;
+            stroke = (n_sines <= 15) ? 2 : 1;
+            if (selected[j]) stroke *= 2;
         }
         else {
             iSetColorEx(255, 255, 255, 0.85);
-            stroke = 2.5 + 2 * (n_selected == n_sines);
+            stroke = (n_sines <= 15) ? 2.5 : 1.5;
+            if (n_selected == n_sines) stroke *= 1.5;
         }
         iPath(X, qY, N, stroke);
     }
@@ -438,24 +485,26 @@ void drawFunction(double X[], double Y[], int n)
     iPath(X, Y, n, 3);
 }
 
+void drawHandDrawnCurve()
+{
+    iSetColorEx(255, 255, 255, 1.0);
+    iPath(drawingX, drawingY, drawingIndex, 2);
+}
+
 void fourier()
 {
-    const int N = 1024, log2 = 10;
-    double    x1, x2, y1, y2;
+    double x1, x2, y1, y2;
 
-    // interpolate points
-    int    l, lt, r, t, c;
-    double cx, dx;
+    int    l, r, t, lt;
+    double dx;
     t = 0;
     while (!isfinite(fY[t]))
         t++;
     l = t, t = width - 1; // leftmost x-cord
     while (!isfinite(fY[t]))
         t--;
-    r = t; // rightmost x-cord
-
+    r                   = t; // rightmost x-cord
     double a[MAX_SINES] = {0}, b[MAX_SINES] = {0};
-
     double period = r - l, w;
     w             = 2 * PI / period;
     for (t = l + 1, lt = l; t <= r;) {
@@ -565,6 +614,9 @@ void handleSupOverlay()
     }
     else if (dy <= 60) {
         // hand-draw
+        drawMode     = 1;
+        drawingIndex = 0;
+        overlayState = 0;
     }
     else if (dy <= 90) {
         // scale amp
