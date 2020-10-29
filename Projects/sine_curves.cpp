@@ -38,7 +38,7 @@ double scale   = 1.0;
 double tracerX[MAX_SINES + 5], tracerY[MAX_SINES + 5];
 int    tracerState[MAX_SINES + 5] = {0}; //-1 paused, 0 hidden, 1 shown
 int    tracersSynced = 0, tracersUnidirectional = 1;
-double tracerSpeed = 300.0; // pixel/second
+double tracerSpeed = 150.0; // pixel/second
 // double
 void zoom(int dir, int x, int y);
 void pan(double dx, double dy);
@@ -76,9 +76,9 @@ void iDraw()
 {
     iClear();
     drawAxis();
-    // locateTracers();
+    locateTracers();
     drawSines();
-    // drawTracers();
+    drawTracers();
     switch (overlayState) {
         case SUP_OVERLAY: drawSupOverLay(); break;
         case SIN_OVERLAY: drawSinOverLay(); break;
@@ -376,7 +376,7 @@ void drawSines()
                 qY[i] = pY[1] = cY[i] += originY;
                 if (drawCurves) iSetColorEx(255, 255, 255, alpha / 2);
             }
-            if (fabs(tracerX[i] - X[i]) < 0.5) tracerY[i] = qY[i];
+            if (fabs(tracerX[j] - X[i]) < 0.5) tracerY[j] = qY[i];
             if (drawCurves) {
                 if (i > 0) {
                     crossesAxis = (pY[0] >= originY && pY[1] < originY) || (pY[0] < originY && pY[1] >= originY);
@@ -464,7 +464,7 @@ int selectCurve(int x, int y)
 void addSine()
 {
     A[n_sines] = iRandom(50, height / 4);
-    L[n_sines] = iRandom(200, width / 2);
+    L[n_sines] = iRandom(150, width / 2);
     P[n_sines] = iRandom(0, width);
     iRandomColor(1, 1, C[n_sines]);
     n_sines++;
@@ -493,9 +493,13 @@ void removeSine()
 
 void drawTextBox()
 {
+    iSetColorEx(45, 52, 54, 0.8);
+    double w = width * 0.25;
+    iFilledRectangle(width * 0.375, 50, width * 0.25, 40);
     iSetColor(255, 255, 255);
-    iRectangle(0, 0, width, 36);
-    iText(14, 14, expr, GLUT_BITMAP_HELVETICA_18);
+    iLineEx(width * 0.375, 50, width * 0.25, 0);
+    double l = strlen(expr) * 10.0;
+    iText(width * 0.375 + (w - l) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
 }
 
 void takeMathInput(unsigned char key)
@@ -835,7 +839,41 @@ void handleGenOverlay(int dragging)
         // show/hide tracers
     }
 }
-
+void locateTracers()
+{
+    double t = iGetTime();
+    if (tracersSynced) {
+        for (int i = 0; i <= n_sines; i++)
+            if (tracersUnidirectional)
+                tracerX[i] = fmod(t * tracerSpeed + width, width);
+            else
+                tracerX[i] = fabs(fmod(t * tracerSpeed + 2 * width, 2 * width) - width);
+    }
+    else {
+        double s = 0.0;
+        for (int i = 0; i < n_sines; i++)
+            if (tracersUnidirectional)
+                tracerX[i] = fmod(t * tracerSpeed + P[i] + width + originX, width), s += fmod(s + P[i] + width, width);
+            else
+                tracerX[i] = fabs(fmod(t * tracerSpeed + P[i] + 2 * width + originX, 2 * width) - width),
+                s += fmod(s + P[i] + 2 * width, 2 * width);
+        if (tracersUnidirectional)
+            tracerX[n_sines] = fmod(t * tracerSpeed + s + width + originX, width);
+        else
+            tracerX[n_sines] = fabs(fmod(t * tracerSpeed + s + 2 * width + originX, 2 * width) - width);
+    }
+}
+void drawTracers()
+{
+    for (int i = 0; i < n_sines; i++) {
+        iSetColor(C[i][0], C[i][1], C[i][2]);
+        iFilledCircle(tracerX[i], tracerY[i], 5);
+    }
+    iSetColorEx(255, 255, 255, 0.85);
+    iFilledCircle(tracerX[n_sines], tracerY[n_sines], 5);
+    iSetColorEx(255, 255, 255, 1);
+    iCircleEx(tracerX[n_sines], tracerY[n_sines], 8, 2, 1, 50, 5, 1);
+}
 void drawBottomOverlay()
 {
     char text[64];
@@ -849,40 +887,80 @@ void drawBottomOverlay()
         iSetColor(255, 255, 255);
         iRectangleEx(width - 26, 0, 25, 22, 1, 10, 5);
     }
-    snprintf(text, 64, "123", n_sines);
+    snprintf(text, 80, "%3d", n_sines);
     iSetColor(255, 255, 255);
-    iText(width - 85, 8, text, GLUT_BITMAP_HELVETICA_12);
-    if (mY <= 22 && mX >= width - 86 && mX <= width - 60) {
+    iText(width - 110, 8, text, GLUT_BITMAP_HELVETICA_12);
+    if (mY <= 22 && mX >= width - 110 && mX <= width - 95) {
         iSetColor(255, 255, 255);
-        iRectangleEx(width - 86, 0, 25, 22, 1, 10, 5);
+        iRectangleEx(width - 112, 0, 26, 22, 1, 10, 5);
     }
-    iText(width - 60, 8, "sines", GLUT_BITMAP_HELVETICA_12);
-    iText(width - 112, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
+    iText(width - 85, 8, "sinusoids", GLUT_BITMAP_HELVETICA_12);
+    iText(width - 137, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
     iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(width - 118, 0, 26, 22);
-    if (mY <= 22 && mX >= width - 116 && mX <= width - 90) {
+    iFilledRectangle(width - 143, 0, 26, 22);
+    if (mY <= 22 && mX >= width - 143 && mX <= width - 118) {
         iSetColor(255, 255, 255);
-        iRectangleEx(width - 118, 0, 25, 22, 1, 10, 5);
+        iRectangleEx(width - 143, 0, 25, 22, 1, 10, 5);
     }
+
+    iSetColor(255, 255, 255);
+    iText(width - 166, 4, "+", GLUT_BITMAP_TIMES_ROMAN_24);
+    iSetColorEx(0, 0, 0, 0.2);
+    iFilledRectangle(width - 172, 0, 26, 22);
+    if (mY <= 22 && mX >= width - 172) {
+        iSetColor(255, 255, 255);
+        iRectangleEx(width - 172, 0, 25, 22, 1, 10, 5);
+    }
+    snprintf(text, 64, "Tracer speed %0.0lf px/s", tracerSpeed);
+    if (tracersUnidirectional)
+        strcat(text, "  >>");
+    else
+        strcat(text, "  <>");
+    iSetColor(255, 255, 255);
+    iText(width - 325, 8, text, GLUT_BITMAP_HELVETICA_12);
+    if (mY <= 22 && mX >= width - 198 && mX <= width - 55) {
+        iSetColor(255, 255, 255);
+        iRectangleEx(width - 198, 0, 26, 22, 1, 10, 5);
+    }
+    iText(width - 348, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
+    iSetColorEx(0, 0, 0, 0.2);
+    iFilledRectangle(width - 354, 0, 26, 22);
+    if (mY <= 22 && mX >= width - 354 && mX <= width - 258) {
+        iSetColor(255, 255, 255);
+        iRectangleEx(width - 354, 0, 25, 22, 1, 10, 5);
+    }
+    iSetColor(255, 255, 255);
+    snprintf(text, 64, "Scale: %0.2lf", scale);
+    iText(width - 430, 8, text, GLUT_BITMAP_HELVETICA_12);
+    snprintf(text, 64, "Origin: (%4.0lf, %4.0lf)", originX, originY);
+    iText(width - 550, 8, text, GLUT_BITMAP_HELVETICA_12);
+    if (n_selected == 1) {
+        int i = 0;
+        while (!selected[i])
+            i++;
+        double a = A[i];
+        double w = 2 * PI / L[i];
+        double p = fmod(360.0 / L[i] * P[i], 360);
+        if (p > 180.0)
+            p -= 360.0;
+        else if (p < -180.0)
+            p += 360.0;
+        if (p >= 0)
+            snprintf(text, 64, "y = %03.3lf sin ( %3.3lf x + %3.3lf )", a, w, p);
+        else
+            snprintf(text, 64, "y = %3.3lf sin ( %3.3lf x - %3.3lf )", a, w, fabs(p));
+        iText(55, 8, text, GLUT_BITMAP_HELVETICA_12);
+    }
+    iSetColor(255, 255, 255);
+    if (drawMode)
+        iText(5, 8, "_--", GLUT_BITMAP_HELVETICA_18);
+    else if (takeExprInput)
+        iText(5, 8, "f(x,y)", GLUT_BITMAP_HELVETICA_12);
+    else
+        iText(5, 5, " ~ ", GLUT_BITMAP_TIMES_ROMAN_24);
+    iSetColorEx(0, 0, 0, 0.2);
+    iFilledRectangle(0, 0, 40, 22);
 }
 void handleBottomOverlay() {}
 
-void locateTracers()
-{
-    double t = iGetTime();
-    double s = 0.0;
-    for (int i = 0; i < n_sines; i++)
-        s += tracerX[i] = fmod(t * tracerSpeed + P[i], width);
-    tracerX[n_sines] = s / n_sines;
-}
-void drawTracers()
-{
-    for (int i = 0; i < n_sines; i++) {
-        iSetColor(C[i][0], C[i][1], C[i][2]);
-        iFilledCircle(tracerX[i], tracerY[i], 5);
-    }
-    iSetColorEx(255, 255, 255, 0.66);
-    iFilledCircle(tracerX[n_sines], tracerY[n_sines], 7.5);
-    iCircleEx(tracerX[n_sines], tracerY[n_sines], 7.5, 2, 1);
-}
 int inOverlay(int x, int y) { return overLayLeft <= x && x <= overlayRight && overlayBottom <= y && y <= overlayTop; }
