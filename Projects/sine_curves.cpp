@@ -75,7 +75,7 @@ void iDraw()
         drawTextBox();
         for (int i = 0; i < MAX_WIDTH; i++)
             fY[i] = -INFINITY;
-        if (resized || exprPlot(expr, drawFunction) && exprUpdated()) fourier();
+        if (exprPlot(expr, drawFunction) && exprUpdated() || resized) fourier();
     }
     if (drawing) drawHandDrawnCurve();
     if (resized) resized = 0;
@@ -134,9 +134,9 @@ void iMouse(int button, int state, int x, int y)
                 if (drawMode) {
                     // remember state of superposition
                     for (int i = 0; i < width; i++) {
-                        fY[i] = height / 2 + panY;
+                        fY[i] = originY;
                         for (int j = 0; j < n_sines; j++)
-                            fY[i] += A[j] * sin(2 * PI / L[j] * (i / zoom - P[j] - panX)) * zoom;
+                            fY[i] += A[j] * sin(2 * PI / L[j] * ((i - originX) / zoom - P[j])) * zoom;
                     }
                     drawing = 1;
                     // drawDir = 0;
@@ -207,6 +207,7 @@ void iMouse(int button, int state, int x, int y)
                 originY = height / 2.0 + panY;
                 exprScale(zoom);
                 exprPan(panX, panY);
+                resized = 1;
             }
         }
     }
