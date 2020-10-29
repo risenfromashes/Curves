@@ -790,18 +790,40 @@ void exprSetScreenRes(int w, int h) { exprScreenWidth = w, exprScreenHeight = h;
 static double exprCurveX[EXPR_MAX_POINTS + 10], exprCurveY[EXPR_MAX_POINTS + 10];
 
 // limit of the graph space surrounding the origin
-static double rX = 5, lX = -5, tY = 5, bY = -5;
+static double rX0 = 5, lX0 = -5, tY0 = 5, bY0 = -5;
+static double rX = rX0, lX = lX0, tY = tY0, bY = bY0;
+static double scale = 1.0;
 
 #define EXPR_GRID_SIZE 256
 
 static int G[EXPR_GRID_SIZE + 10][EXPR_GRID_SIZE + 10];
 
-void exprScale(double del)
+void exprScaleBy(double del)
 {
     if ((del < 0.0 && rX - lX > 0.5 && tY - bY > 0.5) || (del > 0.0 && rX - lX < 50.0 && tY - bY < 50.0)) {
         lX -= del, rX += del;
         bY -= del, tY += del;
     }
+}
+void exprSetInitBounds(double r, double l, double t, double b)
+{
+    rX = r, lX = l, tY = t, bY = b;
+    rX = rX0, lX = lX0, tY = tY0, bY = bY0;
+}
+// scale by screen coordinate scale factor
+void exprScale(double s)
+{
+    scale = 1.0 / s;
+    lX = lX0 * scale, rX = rX0 * scale;
+    bY = bY0 * scale, tY = tY0 * scale;
+}
+// pan by screen coordinates
+void exprPan(double sX, double sY)
+{
+    double dx = -(rX0 - lX0) / exprScreenWidth * sX;
+    double dy = -(rX0 - lX0) / exprScreenWidth * sY;
+    lX = (lX0 + dx) * scale, rX = (rX0 + dx) * scale;
+    bY = (bY0 + dy) * scale, tY = (tY0 + dy) * scale;
 }
 
 static int    getGridH(double x) { return floor((x - lX) / (rX - lX) * EXPR_GRID_SIZE); }

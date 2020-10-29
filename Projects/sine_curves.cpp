@@ -1,9 +1,5 @@
-
-
-#include <complex>
 #include "../ext.h"
 #include "expr.h"
-typedef std::complex<double> complex;
 
 #define MAX_WIDTH 3840
 #define MAX_SINES 256
@@ -30,9 +26,14 @@ double fY[MAX_WIDTH + 10];
 double drawingX[MAX_WIDTH + 10], drawingY[MAX_WIDTH + 10];
 int    drawingIndex;
 // for taking mathematical expressions
-char expr[256]     = "";
-char exprPos       = 0;
-int  takeExprInput = 0;
+char   expr[256]     = "";
+char   exprPos       = 0;
+int    takeExprInput = 0;
+double originX = width / 2.0, originY = height / 2.0;
+double panX = 0, panY = 0.0;
+double panX0 = 0, panY0 = 0.0;
+int    panning = 0;
+double zoom    = 1.0;
 
 void drawSines();
 void drawAxis();
@@ -93,24 +94,31 @@ void iMouseMove(int x, int y)
             Y0 = y;
         }
     }
+    else if (panning) {
+        panX = panX0 + x - X0, panY = panY0 + y - Y0;
+        originX = width / 2.0 + panX;
+        originY = height / 2.0 + panY;
+        exprPan(panX, panY);
+    }
     else if (clickedState && n_selected > 0) {
         int one = n_selected == 1;
         for (int i = 0; i < n_sines; i++) {
             if (selected[i]) {
-                A[i] = (y - height / 2) / (Y0 - height / 2) * A0[i];
+                A[i] = (y - originY) / (Y0 - originY) * A0[i];
                 if (one) {
                     if (fabs(PX[i] - X0) < 5) continue;
                     L[i] = L0[i] * (x - PX[i]) / (X0 - PX[i]);
                 }
                 else
                     L[i] = L0[i] * x / X0;
-                if (fabs(L0[i]) > 50) {
+                if (fabs(L0[i]) > 50) { // min wavelength threshold
                     if (L[i] > 0)
                         L[i] = max(L[i], 50);
                     else if (L[i] < 0)
                         L[i] = min(L[i], -50);
                 }
-                P[i] = PX[i] - L[i] / L0[i] * (PX[i] - P0[i]);
+                P[i] = (1.0 - L[i] / L0[i]) * (PX[i] - originX) / zoom +
+                       L[i] / L0[i] * P0[i]; // change phase to keep the curves at the same place
             }
         }
     }
@@ -124,10 +132,11 @@ void iMouse(int button, int state, int x, int y)
             X0 = x, Y0 = y;
             if (button == GLUT_LEFT_BUTTON) {
                 if (drawMode) {
+                    // remember state of superposition
                     for (int i = 0; i < width; i++) {
-                        fY[i] = height / 2;
+                        fY[i] = height / 2 + panY;
                         for (int j = 0; j < n_sines; j++)
-                            fY[i] += A[j] * sin(2 * PI / L[j] * (i - P[j]));
+                            fY[i] += A[j] * sin(2 * PI / L[j] * (i / zoom - P[j] - panX)) * zoom;
                     }
                     drawing = 1;
                     // drawDir = 0;
@@ -162,20 +171,42 @@ void iMouse(int button, int state, int x, int y)
                 if (takeExprInput) takeExprInput = 0;
                 // remember mouse click position and curve states
                 for (int i = 0; i < n_sines; i++) {
-                    A0[i] = A[i], L0[i] = L[i], P0[i] = P[i];
-                    PX[i] = (2 * round(2 * (X0 - P[i]) / L[i] - 0.5) + 1) * L[i] / 4 + P[i]; // take the nearest peak;
+                    A0[i] = A[i], L0[i] = L[i], P0[i] = P[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
+                    PX[i] =
+                        originX + zoom * (L[i] / 4 * (2 * round(2 / L[i] * ((x - originX) / zoom - P[i]) - 0.5) + 1) +
+                                          P[i]); // take the x coord of the nearest peak
                 }
             }
             else {
                 // deselect all since empty space was clicked
                 deselectAll();
+                panning = 1;
+                panX0 = panX, panY0 = panY;
+                originX = width / 2.0 + panX;
+                originY = height / 2.0 + panY;
             }
         }
-        else if (n_selected > 0) {
-            if (button == 3 || button == 4) {
+        else if (button == 3 || button == 4) {
+            if (n_selected > 0) {
                 int s = button == 3 ? 1 : -1;
                 for (int j = 0; j < n_sines; j++)
                     if (selected[j]) P[j] = P[j] + s * 10;
+            }
+            else {
+                double zoom0 = zoom;
+                if (button == 3) {
+                    if (zoom < 20.0) zoom += 0.01;
+                }
+                else {
+                    if (zoom > 0.01) zoom -= 0.01;
+                }
+                // adjust to keep the current x,y invariant
+                panX    = x - zoom / zoom0 * (x - panX - width / 2.0) - width / 2.0;
+                panY    = y - zoom / zoom0 * (y - panY - height / 2.0) - height / 2.0;
+                originX = width / 2.0 + panX;
+                originY = height / 2.0 + panY;
+                exprScale(zoom);
+                exprPan(panX, panY);
             }
         }
     }
@@ -190,6 +221,7 @@ void iMouse(int button, int state, int x, int y)
             }
             fourier();
         }
+        if (panning) panning = 0;
         if (n_selected > 0) {
             if (shouldDeselect) {
                 if (x == X0 && y == Y0) {
@@ -287,40 +319,42 @@ int main()
 
 void drawAxis()
 {
-    double axisX[] = {0, (double)width}, axisY[] = {height / 2.0, height / 2.0};
-    iSetColorEx(255, 255, 255, 1);
-    iPath(axisX, axisY, 2, 3);
+    iSetColor(255, 255, 255);
+    iLineEx(0, originY, width, 0, 3);
+    iLineEx(originX, 0, 0, height, 3);
+    iSetColor(0, 0, 0);
+    iLineEx(0, originY, width, 0, 1);
+    iLineEx(originX, 0, 0, height, 1);
 }
 void drawSines()
 {
     static double pX[4], pY[4], qY[MAX_WIDTH], cY[MAX_WIDTH];
     int           crossesAxis;
-    pY[2] = pY[3] = height / 2;
+    pY[2] = pY[3] = originY;
     double alpha  = (n_sines <= 15) ? .2 : .1;
     for (int j = 0; j <= n_sines; j++) {
         for (int i = 0; i < N; i++) {
             if (j == 0) cY[i] = 0;
             pX[2] = pX[1] = X[i];
             if (j < n_sines) {
-                qY[i] = pY[1] = height / 2 + A[j] * sin(2 * PI / L[j] * (X[i] - P[j]));
-                cY[i] += qY[i] - height / 2;
+                qY[i] = pY[1] = originY + A[j] * sin(2 * PI / L[j] * ((X[i] - originX) / zoom - P[j])) * zoom;
+                cY[i] += qY[i] - originY;
                 iSetColorEx(C[j][0], C[j][1], C[j][2], alpha);
             }
             else {
-                qY[i] = pY[1] = cY[i] += height / 2;
+                qY[i] = pY[1] = cY[i] += originY;
                 iSetColorEx(255, 255, 255, alpha / 2);
             }
             if (i > 0) {
-                crossesAxis =
-                    (pY[0] >= height / 2 && pY[1] < height / 2) || (pY[0] < height / 2 && pY[1] >= height / 2);
+                crossesAxis = (pY[0] >= originY && pY[1] < originY) || (pY[0] < originY && pY[1] >= originY);
                 if (crossesAxis) {
                     // draw two triangles instead of a quadrilateral
                     pX[3] = pX[1], pY[3] = pY[1], pX[2] = pX[0];
-                    pX[1] = (height / 2 - pY[0]) * (pX[1] - pX[0]) / (pY[1] - pY[0]) + pX[0], pY[1] = height / 2;
+                    pX[1] = (originY - pY[0]) * (pX[1] - pX[0]) / (pY[1] - pY[0]) + pX[0], pY[1] = originY;
                     iFilledPolygon(pX, pY, 3);
                     pX[2] = pX[0] = pX[3], pY[0] = pY[3];
                     iFilledPolygon(pX, pY, 3);
-                    pX[3] = pX[0], pY[3] = height / 2;
+                    pX[3] = pX[0], pY[3] = originY;
                     continue;
                 }
                 iFilledPolygon(pX, pY, 4);
@@ -339,7 +373,7 @@ void drawSines()
             iSetColorEx(255, 255, 255, 0.85);
             stroke = (n_sines <= 15) ? 2.5 : 1.5;
             if (n_selected == n_sines) {
-                stroke *= 1.25;
+                stroke *= 1.5;
                 dashed = 0;
             }
         }
@@ -351,12 +385,12 @@ void drawSines()
 // returns 0 if no curve is selected
 int selectCurve(int x, int y)
 {
-    y -= height / 2;
+    y -= (height / 2 + panY);
     double Y, C, minY = height;
     int    sine_index = -1;
     for (int i = 0; i <= n_sines; i++) {
         if (i < n_sines) {
-            Y = A[i] * sin(2 * PI / L[i] * (x - P[i]));
+            Y = A[i] * sin(2 * PI / L[i] * ((x - originX) / zoom - P[i])) * zoom;
             C += Y;
         }
         else
@@ -513,10 +547,10 @@ void fourier()
         while (!isfinite(fY[t]))
             t++;
         x1 = lt - l, x2 = t - l;
-        y1 = fY[lt] - height / 2.0, y2 = fY[t] - height / 2.0;
+        y1 = fY[lt] - originY, y2 = fY[t] - originY;
         dx = x2 - x1;
-        // printf("x1: %lf, x2: %lf, y1: %lf, y2: %lf, dx: %lf\n", x1, x2, y1, y2, dx);
         for (int j = 1; j <= n_sines; j++) {
+            // trapezoid approximation
             a[j - 1] += 2 / period * (y1 * cos(j * w * x1) + y2 * cos(j * w * x2)) * dx / 2.0;
             b[j - 1] += 2 / period * (y1 * sin(j * w * x1) + y2 * sin(j * w * x2)) * dx / 2.0;
         }
@@ -525,9 +559,9 @@ void fourier()
             t++;
     }
     for (int i = 0; i < n_sines; i++) {
-        A[i] = sqrt(a[i] * a[i] + b[i] * b[i]);
-        L[i] = period / (i + 1);
-        P[i] = (-atan2(a[i], b[i])) * L[i] / (2 * PI) + l;
+        A[i] = sqrt(a[i] * a[i] + b[i] * b[i]) / zoom;
+        L[i] = period / (i + 1) / zoom;
+        P[i] = (-atan2(a[i], b[i])) * L[i] / (2 * PI) + (l - originX) / zoom;
     }
 }
 
