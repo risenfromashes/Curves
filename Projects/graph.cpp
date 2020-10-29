@@ -39,11 +39,13 @@ void iMouse(int button, int state, int mx, int my)
 {
     if (state == GLUT_DOWN) {
         if (button == 3)
-            exprScale(-0.1);
+            scale += 0.01;
         else if (button == 4)
-            exprScale(0.1);
+            scale -= 0.01;
     }
+    exprScale(scale);
 }
+void iPassiveMouseMove(int, int) {}
 void iResize(int w, int h)
 {
     width = w, height = h;
@@ -89,7 +91,15 @@ void iKeyboard(unsigned char key)
 
 void iSpecialKeyboard(unsigned char key)
 {
-
+    static double panX = 0.0, panY = 0.0;
+    switch (key) {
+        case GLUT_KEY_LEFT: panX -= 10; break;
+        case GLUT_KEY_RIGHT: panX += 10; break;
+        case GLUT_KEY_UP: panY += 10; break;
+        case GLUT_KEY_DOWN: panY -= 10; break;
+        default: break;
+    }
+    exprPan(panX, panY);
     if (key == GLUT_KEY_END) { exit(0); }
     // place your codes for other keys here
 }

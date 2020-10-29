@@ -792,7 +792,7 @@ static double exprCurveX[EXPR_MAX_POINTS + 10], exprCurveY[EXPR_MAX_POINTS + 10]
 // limit of the graph space surrounding the origin
 static double rX0 = 5, lX0 = -5, tY0 = 5, bY0 = -5;
 static double rX = rX0, lX = lX0, tY = tY0, bY = bY0;
-static double scale = 1.0;
+static double exprScale = 1.0;
 
 #define EXPR_GRID_SIZE 256
 
@@ -811,19 +811,19 @@ void exprSetInitBounds(double r, double l, double t, double b)
     rX = rX0, lX = lX0, tY = tY0, bY = bY0;
 }
 // scale by screen coordinate scale factor
-void exprScale(double s)
+void exprScaleBounds(double s)
 {
-    scale = 1.0 / s;
-    lX = lX0 * scale, rX = rX0 * scale;
-    bY = bY0 * scale, tY = tY0 * scale;
+    exprScale = 1.0 / s;
+    lX = lX0 * exprScale, rX = rX0 * exprScale;
+    bY = bY0 * exprScale, tY = tY0 * exprScale;
 }
 // pan by screen coordinates
 void exprPan(double sX, double sY)
 {
     double dx = -(rX0 - lX0) / exprScreenWidth * sX;
     double dy = -(rX0 - lX0) / exprScreenWidth * sY;
-    lX = (lX0 + dx) * scale, rX = (rX0 + dx) * scale;
-    bY = (bY0 + dy) * scale, tY = (tY0 + dy) * scale;
+    lX = (lX0 + dx) * exprScale, rX = (rX0 + dx) * exprScale;
+    bY = (bY0 + dy) * exprScale, tY = (tY0 + dy) * exprScale;
 }
 
 static int    getGridH(double x) { return floor((x - lX) / (rX - lX) * EXPR_GRID_SIZE); }
@@ -893,9 +893,9 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                             D  = sqrt(Fx * Fx + Fy * Fy);
                             dx = ds * Fy / D, dy = -ds * Fx / D;
                             s = 1 - 2 * rev;
-                            if (fabs(Fx) > 1e5)
+                            if (fabs(Fx) > 1e3)
                                 dx = s * ds, dy = 0;
-                            else if (fabs(Fy) > 1e5)
+                            else if (fabs(Fy) > 1e3)
                                 dx = 0, dy = s * ds;
                             else
                                 dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
