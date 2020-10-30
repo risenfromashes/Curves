@@ -35,5 +35,5 @@ int main()
     // // struct interval r = exprDiv(exprTan(x), x);
     // printf("%lf, %lf\n", r.l, r.r);
     // printf("%d, %d\n", r.def, r.cont);
-    double gY[] = {-INFINITY, -INFINITY, 2, INFINITY, -3, INFINITY, 1, 4, INFINITY, INFINITY};
+    printf("%d", 1 & 3);
 }

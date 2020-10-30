@@ -791,12 +791,14 @@ static double exprCurveX[EXPR_MAX_POINTS + 10], exprCurveY[EXPR_MAX_POINTS + 10]
 
 // limit of the graph space surrounding the origin
 static double rX0 = 5, lX0 = -5, tY0 = 5, bY0 = -5;
-static double rX = rX0, lX = lX0, tY = tY0, bY = bY0;
+static double rX, lX, tY, bY;
 static double exprScale = 1.0;
 
 #define EXPR_GRID_SIZE 256
 
 static int G[EXPR_GRID_SIZE + 10][EXPR_GRID_SIZE + 10];
+
+void exprInit() { rX = rX0, lX = lX0, tY = tY0, bY = bY0; }
 
 void exprScaleBy(double del)
 {
@@ -805,9 +807,9 @@ void exprScaleBy(double del)
         bY -= del, tY += del;
     }
 }
-void exprSetInitBounds(double r, double l, double t, double b)
+void exprSetInitBounds(double l, double r, double b, double t)
 {
-    rX = r, lX = l, tY = t, bY = b;
+    rX0 = r, lX0 = l, tY0 = t, bY0 = b;
     rX = rX0, lX = lX0, tY = tY0, bY = bY0;
 }
 // scale by screen coordinate scale factor
