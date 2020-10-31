@@ -34,8 +34,8 @@ int    takeExprInput = 0;
 double originX = width / 2.0, originY = height / 2.0;
 double panX = 0, panY = 0.0;
 double panX0 = 0, panY0 = 0.0;
-int    panning = 0;
-double scale   = 1.0;
+int    panning = 0, panningActive = 0;
+double scale = 1.0;
 
 double tracerX[MAX_SINES + 5], tracerY[MAX_SINES + 5];
 int    tracerState[MAX_SINES + 5] = {0}; // first bit set if tracer showed, second bit set if tracer paused
@@ -96,6 +96,13 @@ int inOverlay(int x, int y);
 
 void iDraw()
 {
+    if (overlayState && clickedState && inOverlay(X0, Y0)) {
+        switch (overlayState) {
+            case SUP_OVERLAY: handleSupOverlay(1); break;
+            case SIN_OVERLAY: handleSinOverlay(1); break;
+            case GEN_OVERLAY: handleGenOverlay(1); break;
+        }
+    }
     static double scale0 = scale;
     static double t0     = -1;
     double        t      = iGetTime();
@@ -104,7 +111,7 @@ void iDraw()
         scale0 = scale;
     }
     iClear();
-    if (showGrid || takeExprInput || clickedState || t < t0 + 0.25) drawGrid();
+    if (showGrid || takeExprInput || panningActive || t < t0 + 0.25) drawGrid();
     drawAxis();
     locateTracers();
     drawSines();
@@ -130,12 +137,14 @@ void iPassiveMouseMove(int x, int y) { mX = x, mY = y; }
 
 void iMouseMove(int x, int y)
 {
-    if (overlayState && inOverlay(x, y)) {
-        X0 = x, Y0 = y;
-        switch (overlayState) {
-            case SUP_OVERLAY: handleSupOverlay(1); break;
-            case SIN_OVERLAY: handleSinOverlay(1); break;
-            case GEN_OVERLAY: handleGenOverlay(1); break;
+    if (overlayState) {
+        if (inOverlay(x, y)) {
+            X0 = x, Y0 = y;
+            switch (overlayState) {
+                case SUP_OVERLAY: handleSupOverlay(1); break;
+                case SIN_OVERLAY: handleSinOverlay(1); break;
+                case GEN_OVERLAY: handleGenOverlay(1); break;
+            }
         }
     }
     else if (drawMode) {
@@ -148,6 +157,7 @@ void iMouseMove(int x, int y)
         }
     }
     else if (panning) {
+        if (!panningActive) panningActive = 1;
         panX = panX0 + x - X0, panY = panY0 + y - Y0;
         originX = width / 2.0 + panX;
         originY = height / 2.0 + panY;
@@ -157,14 +167,14 @@ void iMouseMove(int x, int y)
         int one = n_selected == 1;
         for (int i = 0; i < n_sines; i++) {
             if (selected[i]) {
-                A[i] = (y - originY) / (Y0 - originY) * A0[i];
+                if (fabs(Y0 - originY) > 10.0) A[i] = (y - originY) / (Y0 - originY) * A0[i];
                 if (one) {
-                    if (fabs(PX[i] - X0) < 15.0) continue;
+                    if (fabs(PX[i] - X0) < 10.0) continue;
                     L[i] = L0[i] * (x - PX[i]) / (X0 - PX[i]);
                 }
                 else {
                     double x0 = X0;
-                    if (fabs(x0 - originX) < 10) x0 += 10;
+                    if (fabs(x0 - originX) < 20) x0 += 20;
                     L[i] = L0[i] * (x - originX) / (x0 - originX);
                 }
                 if (fabs(L0[i]) >= 50.0) {
@@ -187,6 +197,7 @@ void iMouse(int button, int state, int x, int y)
         if (button < 3) {
             X0 = x, Y0 = y;
             if (button == GLUT_LEFT_BUTTON) {
+                clickedState = 1;
                 if (showHelp) {
                     if (x >= width - 25 && y >= height - 25) {
                         showHelp = 0;
@@ -216,19 +227,9 @@ void iMouse(int button, int state, int x, int y)
                     else
                         overlayState = 0;
                 }
-                clickedState = 1;
             }
             int r          = selectCurve(x, y);
             shouldDeselect = r > 1; // should deselect others on mouse up
-            if (button == GLUT_RIGHT_BUTTON) {
-                if (r > 1 || n_selected == 1)
-                    overlayState = SIN_OVERLAY;
-                else if (n_selected == n_sines)
-                    overlayState = SUP_OVERLAY;
-                else
-                    overlayState = GEN_OVERLAY;
-                newOverlay = 1;
-            }
             if (r) {
                 if (takeExprInput) takeExprInput = 0;
                 // remember mouse click position and curve states
@@ -248,6 +249,15 @@ void iMouse(int button, int state, int x, int y)
                     originX = width / 2.0 + panX;
                     originY = height / 2.0 + panY;
                 }
+            }
+            if (button == GLUT_RIGHT_BUTTON) {
+                if (r > 1 || n_selected == 1)
+                    overlayState = SIN_OVERLAY;
+                else if (n_selected == n_sines)
+                    overlayState = SUP_OVERLAY;
+                else
+                    overlayState = GEN_OVERLAY;
+                newOverlay = 1;
             }
         }
         else if (button == 3 || button == 4) {
@@ -273,11 +283,13 @@ void iMouse(int button, int state, int x, int y)
                 int s = drawingX[i] > drawingX[i - 1] ? 1 : -1;
                 for (int x = drawingX[i - 1]; x < drawingX[i]; x += s)
                     fY[x] = (drawingY[i] - drawingY[i - 1]) / (drawingX[i] - drawingX[i - 1]) * (x - drawingX[i - 1]) +
-                            drawingY[i - 1];
+                            drawingY[i - 1]; // interpolate pointts
             }
             fourier();
         }
-        if (panning) panning = 0;
+        // stop input on click on empty space
+        if (takeExprInput && panning && sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0)) < 3.0) takeExprInput = 0;
+        if (panning) panningActive = panning = 0;
         if (n_selected > 0) {
             if (shouldDeselect) {
                 if (x == X0 && y == Y0) {
@@ -392,8 +404,8 @@ int main()
     return 0;
 }
 
-double amplitude(int index) { return (exprInitRight() - exprInitLeft()) / width * A[index]; }
-double frequency(int index) { return 1.0 / (L[index] * (exprInitRight() - exprInitLeft()) / width); }
+double amplitude(int index) { return exprLength(A[index]); }
+double frequency(int index) { return 1.0 / exprLength(L[index]); }
 double phase(int index)
 {
     double p = fmod(-360.0 * P[index] / L[index], 360.0);
@@ -401,6 +413,7 @@ double phase(int index)
         p -= 360.0;
     else if (p < -180.0)
         p += 360.0;
+    if (fabs(p) < 0.001) p = 0;
     return p;
 }
 void getEquation(int index, char* str);
@@ -522,6 +535,7 @@ void drawSines()
 // returns 0 if no curve is selected
 int selectCurve(int x, int y)
 {
+    if (!drawCurves) return 0;
     y -= (height / 2 + panY);
     double Y, C, minY = height;
     int    sine_index = -1;
@@ -769,12 +783,10 @@ void drawScaleMenu(const char* text, double value, const char* format, int w, in
     char str[8];
     drawMenu(text, w, h, dx, dy, 1, 0);
     snprintf(str, 8, format, value);
-    int l   = strlen(str) * 6;
-    int w_  = 30;
-    int dx_ = dx + w - w_ - 45;
-    drawMenu(str, w_, h, dx_ + (w_ - l), dy, 0, 0);
-    drawMenu("-", 30, h, dx_ - w_ / 2 - 10, dy, 1, 1);
-    drawMenu("+", 30, h, dx_ + w_ / 2 + 30, dy, 1, 1);
+    int l = strlen(str) * 6;
+    drawMenu(str, 30, h, dx + w - 45 - l, dy, 0, 0);
+    drawMenu("-", 30, h, dx + w - 100, dy, 1, 1);
+    drawMenu("+", 30, h, dx + w - 30, dy, 1, 1);
 }
 
 void drawSlideMenu(const char* title, double value, double min, double max, int w, int h, int dx, int dy)
@@ -824,7 +836,13 @@ void drawColorPicker(int w, int h, int dx, int dy, int outlined)
         iLine(overLayLeft + dx, overlayTop - dy, overLayLeft + dx + w, overlayTop - dy);
     }
 }
-
+void deselectAll()
+{
+    // deselect all since empty space was clicked
+    for (int j = 0; j < n_sines; j++)
+        selected[j] = 0;
+    n_selected = 0;
+}
 void drawSupOverLay()
 {
     static int w = 230, h = 240;
@@ -844,40 +862,75 @@ void drawSupOverLay()
         drawMenu("Show Tracer", w, 30, 0, 210, 1, 0);
     drawMenu("Hide", w, 30, 0, 240, 1, 0);
 }
-void deselectAll()
-{
-    // deselect all since empty space was clicked
-    for (int j = 0; j < n_sines; j++)
-        selected[j] = 0;
-    n_selected = 0;
-}
+
 void handleSupOverlay(int dragging)
 {
-    if (dragging) return;
-    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
-    if (0 <= dy && dy <= 30) {
-        // graph
-        takeExprInput = 1;
-        overlayState  = 0;
-    }
-    else if (dy <= 60) {
-        // hand-draw
-        drawMode     = 1;
-        drawingIndex = 0;
-        overlayState = 0;
-        deselectAll();
-    }
-    else if (dy <= 90) {
+    static int w = 230, h = 240;
+    int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    if (60 <= dy && dy <= 90) {
         // scale amp
+        if (dx >= w - 100 && dx <= w - 70) {
+            if (supA > 0.01) supA -= 0.01;
+        }
+        else if (dx >= w - 30)
+            supA += 0.01;
+        for (int i = 0; i < n_sines; i++)
+            A[i] = A0[i] * supA;
     }
-    else if (dy <= 120) {
+    else if (90 <= dy && dy <= 120) {
         // scale freq
+        if (dx >= w - 100 && dx <= w - 70)
+            supF -= 0.005;
+        else if (dx >= w - 30)
+            supF += 0.005;
+        for (int i = 0; i < n_sines; i++) {
+            L[i] = L0[i] / supF;
+            P[i] = P0[i] / supF + L0[i] / 360.0 * supP / supF; // common eqn
+        }
     }
-    else if (dy <= 150) {
+    else if (120 <= dy && dy <= 150) {
         // change phase
+        if (dx >= w - 100 && dx <= w - 70)
+            supP -= 2.5;
+        else if (dx >= w - 30)
+            supP += 2.5;
+        fmod(supP, 360.0);
+        if (supP > 180.0) supP -= 360.0;
+        if (supP < -180.0) supP += 360.0;
+        for (int i = 0; i < n_sines; i++)
+            P[i] = P0[i] / supF + L0[i] / 360.0 * supP / supF; // common eqn
     }
-    else if (dy <= 180) {
-        // show/hide tracer
+    else {
+        if (dragging) return;
+        if (0 <= dy && dy <= 30) {
+            // graph
+            takeExprInput = 1;
+        }
+        else if (dy <= 60) {
+            // hand-draw
+            drawMode     = 1;
+            drawingIndex = 0;
+            deselectAll();
+        }
+        else if (dy <= 180) {
+            // resume/pause tracer
+            if (tracerState[n_sines] & 2)
+                resumeTracer(n_sines);
+            else
+                pauseTracer(n_sines);
+        }
+        else if (dy <= 210) {
+            // show/hide tracer
+            if (tracerState[n_sines] & 1)
+                hideTracer(n_sines);
+            else
+                showTracer(n_sines);
+        }
+        else if (dy <= 240) {
+            // show/hide tracer
+            drawSummation = 0;
+        }
+        overlayState = 0;
     }
 }
 void drawSinOverLay()
@@ -891,8 +944,8 @@ void drawSinOverLay()
     double a = amplitude(sinI);
     double f = fabs(frequency(sinI));
     double p = phase(sinI);
-    drawSlideMenu("Amplitude", a, 0, height / 2.0, w, 45, 0, 75);
-    drawSlideMenu("Frequency", f, 0.1, 100, w, 45, 0, 120);
+    drawSlideMenu("Amplitude", a, 0, exprLength(height / 2.0), w, 45, 0, 75);
+    drawSlideMenu("Frequency", f, 0.01, 1.0 / exprLength(50.0), w, 45, 0, 120);
     drawSlideMenu("Phase", p, -180, 180, w, 45, 0, 165);
     drawMenu("Change Color", w, 30, 0, 195, 1, 0);
     drawColorPicker(w, 20, 0, 225, 0);
@@ -914,17 +967,32 @@ void handleSinOverlay(int dragging)
         double H = 360.0 * dx / w;
         iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
     }
+    else if (30 <= dy && dy <= 75) {
+        // amplitude
+        if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
+            A[sinI] = max(height / 2.0 / scale, A[sinI]) / (w - 10) * (dx - 5);
+    }
+    else if (75 <= dy && dy <= 120) {
+        // frequency
+        if (5 <= dx && dx <= w - 5 && (dragging || dy >= 100)) {
+            double s  = L[sinI] >= 0 ? 1 : -1;
+            double f0 = fabs(frequency(sinI));
+            double L0 = L[sinI];
+            L[sinI]   = s * exprScreenLength(
+                              1.0 / ((max(f0, 1.0 / exprLength(50.0)) - min(f0, 0.01)) / (w - 10) * (dx - 5) + 0.01));
+            P[sinI] *= L[sinI] / L0;
+        }
+    }
+    else if (120 <= dy && dy <= 165) {
+        // phase
+        if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
+            P[sinI] = -1.0 * (dx - 5) / (w - 10) * L[sinI] + L[sinI] / 2.0;
+    }
     else {
         if (dragging) return;
         if (dy <= 30) {
             // sine/cosine
             markedCosine[sinI] = !markedCosine;
-        }
-        else if (dy <= 75) {
-        }
-        else if (dy <= 120) {
-        }
-        else if (dy <= 165) {
         }
         else if (dy <= 195) {
             iRandomColor(1.0, 1.0, C[sinI]);
@@ -947,7 +1015,7 @@ void handleSinOverlay(int dragging)
             // resume tracer
             removeSine();
         }
-        overlayState = !overlayState;
+        overlayState = 0;
     }
 }
 void drawGenOverLay()
@@ -986,74 +1054,91 @@ void drawGenOverLay()
 }
 void handleGenOverlay(int dragging)
 {
-    if (dragging) return;
-    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
-    if (0 <= dy && dy <= 30) {
-        // Add curve
-        addSine();
-    }
-    else if (dy <= 60) {
-        // remove curve
-        removeSine();
-    }
-    else if (dy <= 90) {
-        // show/hide curves
-        drawCurves = !drawCurves;
-    }
-    else if (dy <= 120) {
-        // Hide/show superposition
-        drawSummation = !drawSummation;
-    }
-    else if (dy <= 150) {
-        // resume tracers
-        double t = iGetTime();
-        for (int i = 0; i <= n_sines; i++) {
-            tracerdt[i] += t - tracerPt[i];
-            tracerState[i] &= ~2;
-        }
-    }
-    else if (dy <= 180) {
-        // pause tracers
-        double t = iGetTime();
-        for (int i = 0; i <= n_sines; i++) {
-            tracerPt[i] = t;
-            tracerState[i] |= 2;
-        }
-    }
-    else if (dy <= 210) {
-        // show tracers
-        for (int i = 0; i <= n_sines; i++)
-            showTracer(i);
-    }
-    else if (dy <= 240) {
-        // hide tracers
-        for (int i = 0; i <= n_sines; i++)
-            hideTracer(i);
-    }
-    else if (dy <= 270) {
-        // sync/desync
-        tracersSynced = !tracersSynced;
-    }
-    else if (dy <= 300) {
-        // motion direction
-        tracersUnidirectional = !tracersUnidirectional;
-    }
-    else if (dy <= 330) {
+    static int w = 220, h = 420;
+    int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    if (300 <= dy && dy <= 330) {
         // tracer speed
+        double t  = iGetTime();
+        double v0 = tracerSpeed, v;
+        if (dx >= w - 100 && dx <= w - 70)
+            v = tracerSpeed -= 0.5;
+        else if (dx >= w - 30)
+            v = tracerSpeed += 0.5;
+        if (fabs(v) < 0.01) tracerSpeed = v = -v0;
+        if (tracersSynced)
+            tracerSyncdt = t - v0 / v * (t - tracerSyncdt);
+        else {
+            for (int i = 0; i <= n_sines; i++)
+                tracerdt[i] = t - v0 / v * (t - tracerdt[i]);
+        }
     }
-    else if (dy <= 360) {
-        // back to origin
-        backToOrigin();
+    else {
+        if (dragging) return;
+        if (0 <= dy && dy <= 30) {
+            // Add curve
+            addSine();
+        }
+        else if (dy <= 60) {
+            // remove curve
+            removeSine();
+        }
+        else if (dy <= 90) {
+            // show/hide curves
+            drawCurves = !drawCurves;
+            if (!drawCurves) deselectAll();
+        }
+        else if (dy <= 120) {
+            // Hide/show superposition
+            drawSummation = !drawSummation;
+        }
+        else if (dy <= 150) {
+            // resume tracers
+            double t = iGetTime();
+            for (int i = 0; i <= n_sines; i++) {
+                tracerdt[i] += t - tracerPt[i];
+                tracerState[i] &= ~2;
+            }
+        }
+        else if (dy <= 180) {
+            // pause tracers
+            double t = iGetTime();
+            for (int i = 0; i <= n_sines; i++) {
+                tracerPt[i] = t;
+                tracerState[i] |= 2;
+            }
+        }
+        else if (dy <= 210) {
+            // show tracers
+            for (int i = 0; i <= n_sines; i++)
+                showTracer(i);
+        }
+        else if (dy <= 240) {
+            // hide tracers
+            for (int i = 0; i <= n_sines; i++)
+                hideTracer(i);
+        }
+        else if (dy <= 270) {
+            // sync/desync
+            tracersSynced = !tracersSynced;
+        }
+        else if (dy <= 300) {
+            // motion direction
+            tracersUnidirectional = !tracersUnidirectional;
+        }
+        else if (dy <= 360) {
+            // back to origin
+            backToOrigin();
+        }
+        else if (dy <= 390) {
+            // show/hide grid
+            showGrid = !showGrid;
+        }
+        else if (dy <= 420) {
+            // show help
+            showHelp = 1;
+        }
+        overlayState = 0;
     }
-    else if (dy <= 390) {
-        // show/hide grid
-        showGrid = !showGrid;
-    }
-    else if (dy <= 420) {
-        // show help
-        showHelp = 1;
-    }
-    overlayState = !overlayState;
 }
 void locateTracers()
 {
@@ -1063,23 +1148,29 @@ void locateTracers()
     for (int i = 0; i <= n_sines; i++) {
         if ((tracerState[i] & 1) && !(tracerState[i] & 2)) { // showed and resumed
             if (tracersSynced) {
-                if (tracersUnidirectional)
+                if (tracersUnidirectional) {
+                    x          = fmod(x, width);
                     tracerX[i] = fmod(x + width, width);
-                else
+                }
+                else {
+                    x          = fmod(x, 2 * width);
                     tracerX[i] = fabs(fmod(x + 2 * width, 2 * width) - width);
+                }
             }
             else {
                 x = (t - tracerdt[i]) * tracerSpeed;
-                if (i < n_sines) {
-                    if (tracersUnidirectional)
+                if (tracersUnidirectional) {
+                    x = fmod(x, width);
+                    if (i < n_sines)
                         tracerX[i] = fmod(x + P[i] + width + originX, width), s += fmod(s + P[i] + width, width);
                     else
-                        tracerX[i] = fabs(fmod(x + P[i] + 2 * width + originX, 2 * width) - width),
-                        s += fmod(s + P[i] + 2 * width, 2 * width);
+                        tracerX[n_sines] = fmod(x + s + width + originX, width);
                 }
                 else {
-                    if (tracersUnidirectional)
-                        tracerX[n_sines] = fmod(x + s + width + originX, width);
+                    x = fmod(x, 2 * width);
+                    if (i < n_sines)
+                        tracerX[i] = fabs(fmod(x + P[i] + 2 * width + originX, 2 * width) - width),
+                        s += fmod(s + P[i] + 2 * width, 2 * width);
                     else
                         tracerX[n_sines] = fabs(fmod(x + s + 2 * width + originX, 2 * width) - width);
                 }

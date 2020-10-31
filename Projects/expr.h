@@ -845,6 +845,11 @@ double     exprGetScreenY(double y)
 {
     return (y - tY) / (tY - bY) * exprScreenWidth + (exprScreenWidth + exprScreenHeight) / 2.0;
 }
+
+double exprLength(double sL) { return (rX - lX) / exprScreenWidth * sL; }
+
+double exprScreenLength(double gL) { return exprScreenWidth / (rX - lX) * gL; }
+
 static double getGridMidX(int h) { return lX + (rX - lX) * (h + 0.5) / EXPR_GRID_SIZE; }
 static double getGridMidY(int v) { return tY - (tY - bY) * (v + 0.5) / EXPR_GRID_SIZE; }
 

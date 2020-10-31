@@ -35,5 +35,5 @@ int main()
     // // struct interval r = exprDiv(exprTan(x), x);
     // printf("%lf, %lf\n", r.l, r.r);
     // printf("%d, %d\n", r.def, r.cont);
-    printf("%d", 1 & 3);
+    printf("%lf", fmod(-3.5, 2));
 }
