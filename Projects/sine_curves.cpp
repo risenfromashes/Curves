@@ -61,6 +61,10 @@ void backToOrigin();
 void drawSines();
 void drawAxis();
 void drawGrid();
+void pauseTracer(int);
+void resumeTracer(int);
+void showTracer(int);
+void hideTracer(int);
 void locateTracers();
 void drawTracers();
 void drawBottomOverlay();
@@ -905,49 +909,45 @@ void drawSinOverLay()
 void handleSinOverlay(int dragging)
 {
     int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
-    static int w = 230, h = 200;
-    if (30 <= dy && dy <= 60) {
+    static int w = 230, h = 315;
+    if (205 <= dy && dy <= 225) {
         double H = 360.0 * dx / w;
         iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
     }
     else {
         if (dragging) return;
-        if (0 <= dy && dy <= 30) { iRandomColor(1.0, 1.0, C[sinI]); }
-        else if (dy <= 80) {
-            // change tracer speed
+        if (dy <= 30) {
+            // sine/cosine
+            markedCosine[sinI] = !markedCosine;
         }
-        else if (dy <= 140) {
-            // resume tracer
+        else if (dy <= 75) {
         }
-        else if (dy <= 170) {
-            printf("pause/resume\n");
+        else if (dy <= 120) {
+        }
+        else if (dy <= 165) {
+        }
+        else if (dy <= 195) {
+            iRandomColor(1.0, 1.0, C[sinI]);
+        }
+        else if (dy <= 255) {
             // pause/resume tracer
-            if (tracerState[sinI] & 2) {
-                // resume
-                tracerdt[sinI] += iGetTime() - tracerPt[sinI];
-                tracerState[sinI] &= ~2;
-            }
-            else {
-                // pause
-                tracerPt[sinI] = iGetTime();
-                tracerState[sinI] |= 2;
-            }
-            printf("state: %d\n", tracerState[sinI]);
-            overlayState = 0;
-        }
-        else if (dy <= 200) {
-            printf("show/hide\n");
-            // show/hide tracers
-            if (tracerState[sinI] & 1)
-                tracerState[sinI] &= ~1;
+            if (tracerState[sinI] & 2)
+                resumeTracer(sinI);
             else
-                tracerState[sinI] |= 1;
-            printf("state: %d\n", tracerState[sinI]);
-            overlayState = 0;
+                pauseTracer(sinI);
         }
-        else if (dy <= 20) {
-            // show/hide tracers
+        else if (dy <= 285) {
+            // change tracer speed
+            if (tracerState[sinI] & 1)
+                hideTracer(sinI);
+            else
+                showTracer(sinI);
         }
+        else if (dy <= 315) {
+            // resume tracer
+            removeSine();
+        }
+        overlayState = !overlayState;
     }
 }
 void drawGenOverLay()
@@ -1023,12 +1023,12 @@ void handleGenOverlay(int dragging)
     else if (dy <= 210) {
         // show tracers
         for (int i = 0; i <= n_sines; i++)
-            tracerState[i] |= 1;
+            showTracer(i);
     }
     else if (dy <= 240) {
         // hide tracers
         for (int i = 0; i <= n_sines; i++)
-            tracerState[i] &= ~1;
+            hideTracer(i);
     }
     else if (dy <= 270) {
         // sync/desync
@@ -1104,6 +1104,21 @@ void drawTracers()
         }
     }
 }
+
+void pauseTracer(int i)
+{
+
+    tracerPt[i] = iGetTime();
+    tracerState[i] |= 2;
+}
+void resumeTracer(int i)
+{
+
+    tracerdt[i] += iGetTime() - tracerPt[i];
+    tracerState[i] &= ~2;
+}
+void showTracer(int i) { tracerState[i] |= 1; }
+void hideTracer(int i) { tracerState[i] &= ~1; }
 void drawBottomOverlay()
 {
     char text[64];
