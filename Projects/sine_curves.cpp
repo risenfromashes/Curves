@@ -20,6 +20,8 @@ int       newOverlay = 0;
 int       drawCurves = 1;
 int       resized    = 0;
 
+int showGrid = 0;
+
 int drawMode = 0, drawing = 0;
 // coordinates from the user or from the grapher for fourier estimation
 double fY[MAX_WIDTH + 10];
@@ -44,12 +46,21 @@ double tracerSpeed = 150.0; // pixel/second
 
 double markedCosine[MAX_SINES + 5] = {0};
 
-int showHelp = 1;
+int drawSummation = 1;
+
+int showHelp = 0;
+
+double amplitude(int index);
+double frequency(int index);
+double phase(int index);
+void   getEquation(int index, char* str);
 
 void zoom(int dir, int x, int y);
 void pan(double dx, double dy);
+void backToOrigin();
 void drawSines();
 void drawAxis();
+void drawGrid();
 void locateTracers();
 void drawTracers();
 void drawBottomOverlay();
@@ -81,7 +92,15 @@ int inOverlay(int x, int y);
 
 void iDraw()
 {
+    static double scale0 = scale;
+    static double t0     = -1;
+    double        t      = iGetTime();
+    if (scale0 != scale) {
+        t0     = t;
+        scale0 = scale;
+    }
     iClear();
+    if (showGrid || takeExprInput || clickedState || t < t0 + 0.25) drawGrid();
     drawAxis();
     locateTracers();
     drawSines();
@@ -136,7 +155,7 @@ void iMouseMove(int x, int y)
             if (selected[i]) {
                 A[i] = (y - originY) / (Y0 - originY) * A0[i];
                 if (one) {
-                    if (fabs(PX[i] - X0) < 5) continue;
+                    if (fabs(PX[i] - X0) < 15.0) continue;
                     L[i] = L0[i] * (x - PX[i]) / (X0 - PX[i]);
                 }
                 else {
@@ -219,10 +238,12 @@ void iMouse(int button, int state, int x, int y)
             else {
                 // deselect all since empty space was clicked
                 deselectAll();
-                panning = 1;
-                panX0 = panX, panY0 = panY;
-                originX = width / 2.0 + panX;
-                originY = height / 2.0 + panY;
+                if (button == GLUT_LEFT_BUTTON) {
+                    panning = 1;
+                    panX0 = panX, panY0 = panY;
+                    originX = width / 2.0 + panX;
+                    originY = height / 2.0 + panY;
+                }
             }
         }
         else if (button == 3 || button == 4) {
@@ -233,10 +254,10 @@ void iMouse(int button, int state, int x, int y)
             }
             else {
                 if (button == 3) {
-                    if (scale < 20.0) zoom(1, x, y);
+                    if (scale < 1e5) zoom(1, x, y);
                 }
                 else {
-                    if (scale > 0.01) zoom(-1, x, y);
+                    if (scale > 5e-5) zoom(-1, x, y);
                 }
             }
         }
@@ -269,7 +290,7 @@ void iMouse(int button, int state, int x, int y)
             // replace negative amplitude and wavelength with L/2 phase shift
             for (int j = 0; j < n_sines; j++) {
                 if (selected[j] && A[j] < 0) P[j] += L[j] / 2, A[j] = -A[j];
-                if (selected[j] && L[j] < 0) P[j] += L[j] / 2, L[j] = -L[j];
+                // if (selected[j] && L[j] < 0) P[j] += L[j] / 2, L[j] = -L[j];
             }
         }
         clickedState = 0;
@@ -367,6 +388,26 @@ int main()
     return 0;
 }
 
+double amplitude(int index) { return (exprInitRight() - exprInitLeft()) / width * A[index]; }
+double frequency(int index) { return 1.0 / (L[index] * (exprInitRight() - exprInitLeft()) / width); }
+double phase(int index)
+{
+    double p = fmod(-360.0 * P[index] / L[index], 360.0);
+    if (p > 180.0)
+        p -= 360.0;
+    else if (p < -180.0)
+        p += 360.0;
+    return p;
+}
+void getEquation(int index, char* str);
+
+void backToOrigin()
+{
+    panX = panY = 0;
+    originX     = width / 2;
+    originY     = height / 2;
+}
+
 void drawAxis()
 {
     iSetColor(255, 255, 255);
@@ -375,6 +416,42 @@ void drawAxis()
     iSetColor(0, 0, 0);
     iLineEx(0, originY, width, 0, 1);
     iLineEx(originX, 0, 0, height, 1);
+}
+
+void drawGrid()
+{
+    double l = exprLeft(), r = exprRight(), t = exprTop(), b = exprBottom();
+    double R = min(r - l, t - b);
+    int    k, m;
+    k = m     = floor(log10(R));
+    double du = pow(10, k);
+    switch ((int)floor(R / du)) {
+        case 1: du *= 0.2, m--; break;
+        case 2: du *= 0.25, m -= 2; break;
+        case 3:
+        case 4:
+        case 5: du *= 0.5, m--; break;
+    }
+    char format[16];
+    char num[16];
+    snprintf(format, 16, "%%0.%dlf", (int)fabs(min(0.0, m)));
+    iSetColorEx(255, 255, 255, 0.25);
+    double x = ceil(l / du) * du, sX;
+    while (x < r) {
+        sX = exprGetScreenX(x);
+        snprintf(num, 16, format, x);
+        iLine(sX, 0, sX, height);
+        iText(sX + 10, originY + 10, num, GLUT_BITMAP_HELVETICA_12);
+        x += du;
+    }
+    double y = ceil(b / du) * du, sY;
+    while (y < t) {
+        sY = exprGetScreenY(y);
+        snprintf(num, 16, format, y);
+        iLine(0, sY, width, sY);
+        iText(originX + 10, sY + 10, num, GLUT_BITMAP_HELVETICA_12);
+        y += du;
+    }
 }
 void drawSines()
 {
@@ -397,7 +474,7 @@ void drawSines()
                 if (drawCurves) iSetColorEx(255, 255, 255, alpha / 2);
             }
             if (fabs(tracerX[j] - X[i]) < 0.5) tracerY[j] = qY[i];
-            if (drawCurves) {
+            if (drawCurves && !(j == n_sines && !drawSummation)) {
                 if (i > 0) {
                     crossesAxis = (pY[0] >= originY && pY[1] < originY) || (pY[0] < originY && pY[1] >= originY);
                     if (crossesAxis) {
@@ -415,7 +492,7 @@ void drawSines()
                 pX[3] = pX[0] = pX[1], pY[0] = pY[1];
             }
         }
-        if (drawCurves) {
+        if (drawCurves && !(j == n_sines && !drawSummation)) {
             double stroke;
             int    dashed = 0;
             if (j < n_sines) {
@@ -580,7 +657,7 @@ void zoom(int dir, int x, int y)
     double scale0 = scale;
     if (x < 0) x = originX;
     if (y < 0) y = originY;
-    scale += dir * 0.01;
+    scale += dir * scale * 0.02;
     panX    = x - scale / scale0 * (x - originX) - width / 2.0;
     panY    = y - scale / scale0 * (y - originY) - height / 2.0;
     originX = width / 2.0 + panX;
@@ -664,7 +741,7 @@ void drawBasicOverlay(int w, int h)
     // iRectangleEx(overLayLeft, overlayBottom, w, h, 2.5);
 }
 
-void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int outlined)
+void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int aligned)
 {
     if (filled) {
         if (overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY &&
@@ -676,17 +753,24 @@ void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int ou
         }
     }
     iSetColorEx(255, 255, 255, 1);
-    if (outlined) iLine(overLayLeft + dx, overlayTop - dy, overLayLeft + dx + w, overlayTop - dy);
-    iText(overLayLeft + dx + 10, overlayTop - dy + 10, text, GLUT_BITMAP_HELVETICA_12);
+    if (aligned)
+        dx += (w - strlen(text) * 6) / 2.0;
+    else
+        dx += 10;
+    iText(overLayLeft + dx, overlayTop - dy + 10, text, GLUT_BITMAP_HELVETICA_12);
 }
 
-void drawScaleMenu(double x, int w, int h, int dx, int dy)
+void drawScaleMenu(const char* text, double value, const char* format, int w, int h, int dx, int dy)
 {
     char str[8];
-    snprintf(str, 8, "%0.3f", x);
-    drawMenu(str, w, h, dx, dy, 0, 0);
-    drawMenu("-", 27, h, dx - w / 2, dy, 1, 0);
-    drawMenu("+", 27, h, dx + w / 2 + 25, dy, 1, 0);
+    drawMenu(text, w, h, dx, dy, 1, 0);
+    snprintf(str, 8, format, value);
+    int l   = strlen(str) * 6;
+    int w_  = 30;
+    int dx_ = dx + w - w_ - 45;
+    drawMenu(str, w_, h, dx_ + (w_ - l), dy, 0, 0);
+    drawMenu("-", 30, h, dx_ - w_ / 2 - 10, dy, 1, 1);
+    drawMenu("+", 30, h, dx_ + w_ / 2 + 30, dy, 1, 1);
 }
 
 void drawSlideMenu(const char* title, double value, double min, double max, int w, int h, int dx, int dy)
@@ -699,7 +783,7 @@ void drawSlideMenu(const char* title, double value, double min, double max, int 
     }
     char str[8];
     iSetColor(255, 255, 255);
-    iText(overLayLeft + dx + 5, overlayTop - dy + h - 18, title, GLUT_BITMAP_HELVETICA_12);
+    iText(overLayLeft + dx + 10, overlayTop - dy + h - 18, title, GLUT_BITMAP_HELVETICA_12);
     snprintf(str, 8, "%0.3f", value);
     iText(overLayLeft + dx + w - strlen(str) * 6 - 10, overlayTop - dy + h - 18, str, GLUT_BITMAP_HELVETICA_12);
     iSetColorEx(255, 255, 255, 0.2);
@@ -739,17 +823,22 @@ void drawColorPicker(int w, int h, int dx, int dy, int outlined)
 
 void drawSupOverLay()
 {
-    static int w = 230, h = 210;
+    static int w = 230, h = 240;
     drawBasicOverlay(w, h);
     drawMenu("Approximate graph of equation", w, 30, 0, 30, 1, 0);
     drawMenu("Approximate hand-drawn curve", w, 30, 0, 60, 1, 0);
-    drawMenu("Scale Amplitude", w, 30, 0, 90, 0, 0);
-    drawScaleMenu(supA, 40, 30, w - 75, 90);
-    drawMenu("Scale Frequencies", w, 30, 0, 120, 0, 0);
-    drawScaleMenu(supF, 40, 30, w - 75, 120);
-    drawMenu("Change Phase", w, 30, 0, 150, 0, 0);
-    drawScaleMenu(supP, 40, 30, w - 75, 150);
-    if (tracerState[n_sines] & 1) drawMenu("Show Tracers", w, 30, 0, 180, 1, 0);
+    drawScaleMenu("Scale Amplitude", supA, "%0.3lf", w, 30, 0, 90);
+    drawScaleMenu("Scale Frequencies", supF, "%0.3lf", w, 30, 0, 120);
+    drawScaleMenu("Change Phase", supP, "%0.1lf", w, 30, 0, 150);
+    if (tracerState[n_sines] & 2)
+        drawMenu("Resume Tracer", w, 30, 0, 180, 1, 0);
+    else
+        drawMenu("Pause Tracer", w, 30, 0, 180, 1, 0);
+    if (tracerState[n_sines] & 1)
+        drawMenu("Hide Tracer", w, 30, 0, 210, 1, 0);
+    else
+        drawMenu("Show Tracer", w, 30, 0, 210, 1, 0);
+    drawMenu("Hide", w, 30, 0, 240, 1, 0);
 }
 void deselectAll()
 {
@@ -789,29 +878,29 @@ void handleSupOverlay(int dragging)
 }
 void drawSinOverLay()
 {
-    static int w = 230, h = 275;
+    static int w = 230, h = 315;
     drawBasicOverlay(w, h);
-    drawMenu("Change Color", w, 30, 0, 30, 1, 0);
-    drawColorPicker(w, 20, 0, 50, 0);
-    double a = A[sinI];
-    double f = width / L[sinI];
-    double p = fmod(360.0 * P[sinI] / L[sinI], 360.0);
-    if (p > 180.0)
-        p -= 360.0;
-    else if (p < -180.0)
-        p += 360.0;
-    drawSlideMenu("Amplitude", a, 0, height / 2.0, w, 45, 0, 95);
-    drawSlideMenu("Frequency", f, 0.1, 100, w, 45, 0, 140);
-    drawSlideMenu("Phase", p, -180, 180, w, 45, 0, 185);
+    if (markedCosine[sinI])
+        drawMenu("Cosine", w, 30, 0, 30, 1, 0);
+    else
+        drawMenu("Sine", w, 30, 0, 30, 1, 0);
+    double a = amplitude(sinI);
+    double f = fabs(frequency(sinI));
+    double p = phase(sinI);
+    drawSlideMenu("Amplitude", a, 0, height / 2.0, w, 45, 0, 75);
+    drawSlideMenu("Frequency", f, 0.1, 100, w, 45, 0, 120);
+    drawSlideMenu("Phase", p, -180, 180, w, 45, 0, 165);
+    drawMenu("Change Color", w, 30, 0, 195, 1, 0);
+    drawColorPicker(w, 20, 0, 225, 0);
     if (tracerState[sinI] & 2)
-        drawMenu("Resume Tracer", w, 30, 0, 215, 1, 0);
+        drawMenu("Resume Tracer", w, 30, 0, 255, 1, 0);
     else
-        drawMenu("Pause Tracer", w, 30, 0, 215, 1, 0);
+        drawMenu("Pause Tracer", w, 30, 0, 255, 1, 0);
     if (tracerState[sinI] & 1)
-        drawMenu("Hide Tracer", w, 30, 0, 245, 1, 0);
+        drawMenu("Hide Tracer", w, 30, 0, 285, 1, 0);
     else
-        drawMenu("Show Tracer", w, 30, 0, 245, 1, 0);
-    drawMenu("Remove Curve", w, 30, 0, 275, 1, 0);
+        drawMenu("Show Tracer", w, 30, 0, 285, 1, 0);
+    drawMenu("Remove Curve", w, 30, 0, 315, 1, 0);
 }
 void handleSinOverlay(int dragging)
 {
@@ -863,46 +952,108 @@ void handleSinOverlay(int dragging)
 }
 void drawGenOverLay()
 {
-    static int w = 250, h = 180;
+    static int w = 220, h = 420;
     drawBasicOverlay(w, h);
-    drawMenu("Select All Curves", w, 30, 0, 30, 1, 0);
-    drawMenu("Add Curve", w, 30, 0, 60, 1, 0);
-    drawMenu("Change Tracer Speed", w, 30, 0, 90, 1, 0);
-    drawScaleMenu(0, 40, 30, w - 73, 90);
-    drawMenu("Resume Tracers", w, 30, 0, 120, 1, 0);
+    drawMenu("Add Curve", w, 30, 0, 30, 1, 0);
+    drawMenu("Remove Curve", w, 30, 0, 60, 1, 0);
     if (drawCurves)
-        drawMenu("Hide Curves", w, 30, 0, 150, 1, 0);
+        drawMenu("Hide Curves", w, 30, 0, 90, 1, 0);
     else
-        drawMenu("Show Curves", w, 30, 0, 150, 1, 0);
-    drawMenu("Show Help", w, 30, 0, 180, 1, 0);
+        drawMenu("Show Curves", w, 30, 0, 90, 1, 0);
+    if (drawSummation)
+        drawMenu("Hide Summation", w, 30, 0, 120, 1, 0);
+    else
+        drawMenu("Show Summation", w, 30, 0, 120, 1, 0);
+    drawMenu("Resume All Tracers", w, 30, 0, 150, 1, 0);
+    drawMenu("Pause All Tracers", w, 30, 0, 180, 1, 0);
+    drawMenu("Show All Tracers", w, 30, 0, 210, 1, 0);
+    drawMenu("Hide All Tracers", w, 30, 0, 240, 1, 0);
+    if (tracersSynced)
+        drawMenu("Desync Tracers", w, 30, 0, 270, 1, 0);
+    else
+        drawMenu("Sync Tracers", w, 30, 0, 270, 1, 0);
+    if (tracersUnidirectional)
+        drawMenu("Tracer Motion >>", w, 30, 0, 300, 1, 0);
+    else
+        drawMenu("Tracer Motion <>", w, 30, 0, 300, 1, 0);
+    drawScaleMenu("Tracer Speed", tracerSpeed, "%0.1lf", w, 30, 0, 330);
+    drawMenu("Back to Origin", w, 30, 0, 360, 1, 0);
+    if (showGrid)
+        drawMenu("Hide Grid", w, 30, 0, 390, 1, 0);
+    else
+        drawMenu("Show Grid", w, 30, 0, 390, 1, 0);
+    drawMenu("Show Help", w, 30, 0, 420, 1, 0);
 }
 void handleGenOverlay(int dragging)
 {
     if (dragging) return;
     int dx = X0 - overLayLeft, dy = overlayTop - Y0;
     if (0 <= dy && dy <= 30) {
-        // select all
+        // Add curve
+        addSine();
     }
     else if (dy <= 60) {
-        addSine();
-        overlayState = 0;
+        // remove curve
+        removeSine();
     }
     else if (dy <= 90) {
-        // change tracer speed
+        // show/hide curves
+        drawCurves = !drawCurves;
     }
     else if (dy <= 120) {
-        // resume tracer
+        // Hide/show superposition
+        drawSummation = !drawSummation;
     }
     else if (dy <= 150) {
-        // show/hide curves
-        drawCurves   = !drawCurves;
-        overlayState = 0;
+        // resume tracers
+        double t = iGetTime();
+        for (int i = 0; i <= n_sines; i++) {
+            tracerdt[i] += t - tracerPt[i];
+            tracerState[i] &= ~2;
+        }
     }
     else if (dy <= 180) {
-        // show/hide tracers
-        showHelp     = 1;
-        overlayState = 0;
+        // pause tracers
+        double t = iGetTime();
+        for (int i = 0; i <= n_sines; i++) {
+            tracerPt[i] = t;
+            tracerState[i] |= 2;
+        }
     }
+    else if (dy <= 210) {
+        // show tracers
+        for (int i = 0; i <= n_sines; i++)
+            tracerState[i] |= 1;
+    }
+    else if (dy <= 240) {
+        // hide tracers
+        for (int i = 0; i <= n_sines; i++)
+            tracerState[i] &= ~1;
+    }
+    else if (dy <= 270) {
+        // sync/desync
+        tracersSynced = !tracersSynced;
+    }
+    else if (dy <= 300) {
+        // motion direction
+        tracersUnidirectional = !tracersUnidirectional;
+    }
+    else if (dy <= 330) {
+        // tracer speed
+    }
+    else if (dy <= 360) {
+        // back to origin
+        backToOrigin();
+    }
+    else if (dy <= 390) {
+        // show/hide grid
+        showGrid = !showGrid;
+    }
+    else if (dy <= 420) {
+        // show help
+        showHelp = 1;
+    }
+    overlayState = !overlayState;
 }
 void locateTracers()
 {
@@ -960,8 +1111,8 @@ void drawBottomOverlay()
     iFilledRectangle(0, 0, width, 22);
     iSetColor(255, 255, 255);
     iText(width - 20, 4, "+", GLUT_BITMAP_TIMES_ROMAN_24);
-    iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(width - 26, 0, 26, 22);
+    // iSetColorEx(0, 0, 0, 0.2);
+    // iFilledRectangle(width - 26, 0, 26, 22);
     if (mY <= 22 && mX >= width - 26) {
         iSetColor(255, 255, 255);
         iRectangleEx(width - 26, 0, 25, 22, 1, 10, 5);
@@ -975,8 +1126,8 @@ void drawBottomOverlay()
     }
     iText(width - 85, 8, "sinusoids", GLUT_BITMAP_HELVETICA_12);
     iText(width - 137, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
-    iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(width - 143, 0, 26, 22);
+    // iSetColorEx(0, 0, 0, 0.2);
+    // iFilledRectangle(width - 143, 0, 26, 22);
     if (mY <= 22 && mX >= width - 143 && mX <= width - 118) {
         iSetColor(255, 255, 255);
         iRectangleEx(width - 143, 0, 25, 22, 1, 10, 5);
@@ -984,8 +1135,8 @@ void drawBottomOverlay()
 
     iSetColor(255, 255, 255);
     iText(width - 166, 4, "+", GLUT_BITMAP_TIMES_ROMAN_24);
-    iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(width - 172, 0, 26, 22);
+    // iSetColorEx(0, 0, 0, 0.2);
+    // iFilledRectangle(width - 172, 0, 26, 22);
     if (mY <= 22 && mX >= width - 172) {
         iSetColor(255, 255, 255);
         iRectangleEx(width - 172, 0, 25, 22, 1, 10, 5);
@@ -1002,8 +1153,8 @@ void drawBottomOverlay()
         iRectangleEx(width - 198, 0, 26, 22, 1, 10, 5);
     }
     iText(width - 348, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
-    iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(width - 354, 0, 26, 22);
+    // iSetColorEx(0, 0, 0, 0.2);
+    // iFilledRectangle(width - 354, 0, 26, 22);
     if (mY <= 22 && mX >= width - 354 && mX <= width - 258) {
         iSetColor(255, 255, 255);
         iRectangleEx(width - 354, 0, 25, 22, 1, 10, 5);
@@ -1017,17 +1168,13 @@ void drawBottomOverlay()
         int i = 0;
         while (!selected[i])
             i++;
-        double a = A[i];
-        double w = 2 * PI / L[i];
-        double p = fmod(360.0 / L[i] * P[i], 360);
-        if (p > 180.0)
-            p -= 360.0;
-        else if (p < -180.0)
-            p += 360.0;
+        double a = amplitude(i);
+        double w = 2 * PI * frequency(i);
+        double p = phase(i);
         if (p >= 0)
-            snprintf(text, 64, "y = %03.3lf sin ( %3.3lf x + %3.3lf )", a, w, p);
+            snprintf(text, 64, "y = %00.3lf sin ( %0.3lf x + %0.3lf )", a, w, p);
         else
-            snprintf(text, 64, "y = %3.3lf sin ( %3.3lf x - %3.3lf )", a, w, fabs(p));
+            snprintf(text, 64, "y = %0.3lf sin ( %0.3lf x - %0.3lf )", a, w, fabs(p));
         iText(55, 8, text, GLUT_BITMAP_HELVETICA_12);
     }
     iSetColor(255, 255, 255);
@@ -1045,7 +1192,7 @@ void handleBottomOverlay() {}
 int inOverlay(int x, int y) { return overLayLeft <= x && x <= overlayRight && overlayBottom <= y && y <= overlayTop; }
 
 const char helpStrings[14][128] = {
-    "Drag mouse on empty area to pan. Scroll (mouse middle button) to zoom in/out.",
+    "Drag mouse on blank area to pan. Scroll (mouse middle button) to zoom in/out.",
     "Click to select a curve and drag to adjust the shape. Scroll to change phase.",
     "You can also Ctrl select multiple curves and drag adjust all of them.",
     "Selecting the summation curve selects and adjusts all the composing sinusoids.",
@@ -1089,9 +1236,8 @@ const char shortcuts[26][2][128] = {
     {"Q End", "Exit"},
 };
 
-const char aboutString[][128] = {
-    "A simple application written in C, for you to explore and play with sines and cosines.",
-    "Ashrafur Rahman | Octobar 2020"};
+const char aboutString[][128] = {"A simple application written in C, to explore and play with sines and cosines.",
+                                 "Ashrafur Rahman | October 2020"};
 
 void drawHelpScreen()
 {
@@ -1113,7 +1259,7 @@ void drawHelpScreen()
         iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 390, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
     }
     iText(width - 485, 45, "About", GLUT_BITMAP_HELVETICA_12);
-    iLine(width - 490, 40, width - 95, 40);
+    iLine(width - 490, 40, width - 135, 40);
     for (int i = 0; i < 2; i++)
         iText(width - 485, 25 - i * 14, aboutString[i], GLUT_BITMAP_HELVETICA_10);
 }

@@ -828,10 +828,20 @@ void exprPan(double sX, double sY)
     bY = (bY0 + dy) * exprScale, tY = (tY0 + dy) * exprScale;
 }
 
-static int    getGridH(double x) { return floor((x - lX) / (rX - lX) * EXPR_GRID_SIZE); }
-static int    getGridV(double y) { return ceil((tY - y) / (tY - bY) * EXPR_GRID_SIZE); }
-static double getScreenX(double x) { return (x - lX) / (rX - lX) * exprScreenWidth; }
-static double getScreenY(double y)
+double exprLeft() { return lX; }
+double exprRight() { return rX; }
+double exprTop() { return tY; }
+double exprBottom() { return bY; }
+
+double exprInitLeft() { return lX0; }
+double exprInitRight() { return rX0; }
+double exprInitTop() { return tY0; }
+double exprInitBottom() { return bY0; }
+
+static int getGridH(double x) { return floor((x - lX) / (rX - lX) * EXPR_GRID_SIZE); }
+static int getGridV(double y) { return ceil((tY - y) / (tY - bY) * EXPR_GRID_SIZE); }
+double     exprGetScreenX(double x) { return (x - lX) / (rX - lX) * exprScreenWidth; }
+double     exprGetScreenY(double y)
 {
     return (y - tY) / (tY - bY) * exprScreenWidth + (exprScreenWidth + exprScreenHeight) / 2.0;
 }
@@ -868,14 +878,14 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                 int    i, j, H, V, rev = 0, n_overlap = 0;
                 x = getGridMidX(h), y = getGridMidY(v);
                 // iSetColorEx(0, 0, 255, 0.5);
-                // iCircle(getScreenX(x), getScreenY(y), 10);
+                // iCircle(exprGetScreenX(x), exprGetScreenY(y), 10);
                 // iterate in the inital direction and after following the trail a while
                 // go back to the initial point and go the other way
                 // the first one is not a solution
                 int s, r, undef = 0;
                 for (i = 0; i <= EXPR_MAX_POINTS; i++) {
                     if (i > 0) {
-                        exprCurveX[i - 1] = getScreenX(x), exprCurveY[i - 1] = getScreenY(y);
+                        exprCurveX[i - 1] = exprGetScreenX(x), exprCurveY[i - 1] = exprGetScreenY(y);
                         if (i == 1) initX = x, initY = y;
                     }
                     for (j = 0; j <= 3; j++) {
@@ -895,9 +905,9 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                             D  = sqrt(Fx * Fx + Fy * Fy);
                             dx = ds * Fy / D, dy = -ds * Fx / D;
                             s = 1 - 2 * rev;
-                            if (fabs(Fx) > 1e3)
+                            if (fabs(Fx) > 1e2)
                                 dx = s * ds, dy = 0;
-                            else if (fabs(Fy) > 1e3)
+                            else if (fabs(Fy) > 1e2)
                                 dx = 0, dy = s * ds;
                             else
                                 dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
@@ -928,7 +938,7 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                     int inBoundary = lX <= x && x <= rX && bY <= y && y <= tY;
                     if (i == 0) {
                         // iSetColorEx(0, 255, 0, 0.5);
-                        // iCircle(getScreenX(initX), getScreenY(initY), 10);
+                        // iCircle(exprGetScreenX(initX), exprGetScreenY(initY), 10);
                     }
                     H = getGridH(x), V = getGridV(y);
                     if (inBoundary) {
