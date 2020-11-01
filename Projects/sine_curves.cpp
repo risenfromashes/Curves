@@ -962,31 +962,45 @@ void drawSinOverLay()
 void handleSinOverlay(int dragging)
 {
     int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    static int dragSelection = 0;
     static int w = 230, h = 315;
-    if (205 <= dy && dy <= 225) {
-        double H = 360.0 * dx / w;
-        iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
-    }
-    else if (30 <= dy && dy <= 75) {
+    if (30 <= dy && dy <= 75) {
         // amplitude
-        if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
-            A[sinI] = max(height / 2.0 / scale, A[sinI]) / (w - 10) * (dx - 5);
+        if (!dragging || dragSelection == 1) {
+            dragSelection = 1;
+            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
+                A[sinI] = max(height / 2.0 / scale, A[sinI]) / (w - 10) * (dx - 5);
+        }
     }
     else if (75 <= dy && dy <= 120) {
         // frequency
-        if (5 <= dx && dx <= w - 5 && (dragging || dy >= 100)) {
-            double s  = L[sinI] >= 0 ? 1 : -1;
-            double f0 = fabs(frequency(sinI));
-            double L0 = L[sinI];
-            L[sinI]   = s * exprScreenLength(
-                              1.0 / ((max(f0, 1.0 / exprLength(50.0)) - min(f0, 0.01)) / (w - 10) * (dx - 5) + 0.01));
-            P[sinI] *= L[sinI] / L0;
+        if (!dragging || dragSelection == 2) {
+            dragSelection = 2;
+            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 100)) {
+                double s  = L[sinI] >= 0 ? 1 : -1;
+                double f0 = fabs(frequency(sinI));
+                double L0 = L[sinI];
+                L[sinI] =
+                    s * exprScreenLength(
+                            1.0 / ((max(f0, 1.0 / exprLength(50.0)) - min(f0, 0.01)) / (w - 10) * (dx - 5) + 0.01));
+                P[sinI] *= L[sinI] / L0;
+            }
+        }
+    }
+    else if (205 <= dy && dy <= 225) {
+        if (!dragging || dragSelection == 3) {
+            dragSelection = 3;
+            double H      = 360.0 * dx / w;
+            iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
         }
     }
     else if (120 <= dy && dy <= 165) {
         // phase
-        if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
-            P[sinI] = -1.0 * (dx - 5) / (w - 10) * L[sinI] + L[sinI] / 2.0;
+        if (!dragging || dragSelection == 4) {
+            dragSelection = 4;
+            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
+                P[sinI] = -1.0 * (dx - 5) / (w - 10) * L[sinI] + L[sinI] / 2.0;
+        }
     }
     else {
         if (dragging) return;
@@ -996,6 +1010,7 @@ void handleSinOverlay(int dragging)
         }
         else if (dy <= 195) {
             iRandomColor(1.0, 1.0, C[sinI]);
+            return;
         }
         else if (dy <= 255) {
             // pause/resume tracer
