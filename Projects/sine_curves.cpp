@@ -49,7 +49,7 @@ double tracerSpeed = 150.0; // pixel/second
 
 double markedCosine[MAX_SINES + 5] = {0};
 
-int drawSummation = 1;
+int drawSummation = 1; // if 2, only summation is drawn
 
 int showHelp = 0;
 
@@ -646,7 +646,7 @@ void drawSines()
                 if (drawCurves) iSetColorEx(255, 255, 255, alpha / 2);
             }
             if (fabs(tracerX[j] - X[i]) < 0.5) tracerY[j] = qY[i];
-            if (drawCurves && !(j == n_sines && !drawSummation)) {
+            if (drawCurves && !(j < n_sines && drawSummation == 2) && !(j == n_sines && !drawSummation)) {
                 if (i > 0) {
                     crossesAxis = (pY[0] >= originY && pY[1] < originY) || (pY[0] < originY && pY[1] >= originY);
                     if (crossesAxis) {
@@ -664,7 +664,7 @@ void drawSines()
                 pX[3] = pX[0] = pX[1], pY[0] = pY[1];
             }
         }
-        if (drawCurves && !(j == n_sines && !drawSummation)) {
+        if (drawCurves && !(j < n_sines && drawSummation == 2) && !(j == n_sines && !drawSummation)) {
             double stroke;
             int    dashed = 0;
             if (j < n_sines) {
@@ -776,8 +776,14 @@ void drawTextBox()
     iFilledRectangle(width * 0.375, 50, width * 0.25, 40);
     iSetColor(255, 255, 255);
     iLineEx(width * 0.375, 50, width * 0.25, 0);
-    double l = strlen(expr) * 10.0;
-    iText(width * 0.375 + (w - l) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
+    if (strlen(expr) == 0) {
+        iSetColorEx(255, 255, 255, 0.33);
+        iText(width * 0.375 + (w - 190.0) / 2.0, 65, "Enter your equation", GLUT_BITMAP_TIMES_ROMAN_24);
+    }
+    else {
+        double l = strlen(expr) * 10.0;
+        iText(width * 0.375 + (w - l) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
+    }
 }
 
 int takeIntInput(unsigned char key)
@@ -1024,7 +1030,7 @@ void deselectAll()
 }
 void drawSupOverLay()
 {
-    static int w = 230, h = 240;
+    static int w = 230, h = 270;
     drawBasicOverlay(w, h);
     drawMenu("Approximate graph of equation", w, 30, 0, 30, 1, 0);
     drawMenu("Approximate hand-drawn curve", w, 30, 0, 60, 1, 0);
@@ -1039,7 +1045,11 @@ void drawSupOverLay()
         drawMenu("Hide Tracer", w, 30, 0, 210, 1, 0);
     else
         drawMenu("Show Tracer", w, 30, 0, 210, 1, 0);
-    drawMenu("Hide", w, 30, 0, 240, 1, 0);
+    if (drawSummation == 1)
+        drawMenu("Show Summation Only", w, 30, 0, 240, 1, 0);
+    else
+        drawMenu("Show Composing Sinusoids", w, 30, 0, 240, 1, 0);
+    drawMenu("Hide", w, 30, 0, 270, 1, 0);
 }
 
 void handleSupOverlay(int dragging)
@@ -1106,7 +1116,14 @@ void handleSupOverlay(int dragging)
                 showTracer(n_sines);
         }
         else if (dy <= 240) {
-            // show/hide tracer
+            // show summation only
+            if (drawSummation == 1)
+                drawSummation = 2;
+            else
+                drawSummation = 1;
+        }
+        else if (dy <= 270) {
+            // show summation only
             drawSummation = 0;
         }
         overlayState = 0;
@@ -1227,7 +1244,7 @@ void drawGenOverLay()
     drawBasicOverlay(w, h);
     drawMenu("Add Curve", w, 30, 0, 30, 1, 0);
     drawMenu("Remove Curve", w, 30, 0, 60, 1, 0);
-    if (drawCurves)
+    if (drawCurves && drawSummation != 2)
         drawMenu("Hide Curves", w, 30, 0, 90, 1, 0);
     else
         drawMenu("Show Curves", w, 30, 0, 90, 1, 0);
@@ -1320,7 +1337,10 @@ void handleGenOverlay(int dragging)
         }
         else if (dy <= 90) {
             // show/hide curves
-            drawCurves = !drawCurves;
+            if (drawSummation == 2)
+                drawSummation = 1, drawCurves = 1;
+            else
+                drawCurves = !drawCurves;
             if (!drawCurves) deselectAll();
         }
         else if (dy <= 120) {
