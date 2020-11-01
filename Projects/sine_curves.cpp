@@ -28,9 +28,11 @@ double fY[MAX_WIDTH + 10];
 double drawingX[MAX_WIDTH + 10], drawingY[MAX_WIDTH + 10];
 int    drawingIndex;
 // for taking mathematical expressions
-char   expr[256]     = "";
-char   exprPos       = 0;
-int    takeExprInput = 0;
+char   numStr[8] = "";
+int    numPos    = 0;
+char   expr[256] = "";
+char   exprPos   = 0;
+int    graphMode = 0, integerInput = 0;
 double originX = width / 2.0, originY = height / 2.0;
 double panX = 0, panY = 0.0;
 double panX0 = 0, panY0 = 0.0;
@@ -53,7 +55,7 @@ int showHelp = 0;
 double amplitude(int index);
 double frequency(int index);
 double phase(int index);
-void   getEquation(int index, char* str);
+void   equation(int index, char* str, int size);
 
 void zoom(int dir, int x, int y);
 void pan(double dx, double dy);
@@ -66,9 +68,14 @@ void resumeTracer(int);
 void showTracer(int);
 void hideTracer(int);
 void locateTracers();
+void hideAllTracers();
+void showAllTracers();
+void resumeAllTracers();
+void pauseAllTracers();
 void drawTracers();
+void changeTracerSpeed(int dir);
 void drawBottomOverlay();
-void handleBottomOverlay();
+void handleBottomOverlay(int);
 int  selectCurve(int x, int y);
 void addSine();
 void removeSine();
@@ -89,6 +96,7 @@ void handleSupOverlay(int);
 void handleSinOverlay(int);
 void handleGenOverlay(int);
 void drawTextBox();
+int  takeIntInput(unsigned char key);
 void takeMathInput(unsigned char key);
 void fourier();
 
@@ -96,7 +104,9 @@ int inOverlay(int x, int y);
 
 void iDraw()
 {
-    if (overlayState && clickedState && inOverlay(X0, Y0)) {
+    if (clickedState && Y0 <= 22)
+        handleBottomOverlay(1);
+    else if (overlayState && clickedState && inOverlay(X0, Y0)) {
         switch (overlayState) {
             case SUP_OVERLAY: handleSupOverlay(1); break;
             case SIN_OVERLAY: handleSinOverlay(1); break;
@@ -111,7 +121,7 @@ void iDraw()
         scale0 = scale;
     }
     iClear();
-    if (showGrid || takeExprInput || panningActive || t < t0 + 0.25) drawGrid();
+    if (showGrid || graphMode || panningActive || t < t0 + 0.25) drawGrid();
     drawAxis();
     locateTracers();
     drawSines();
@@ -121,7 +131,7 @@ void iDraw()
         case SIN_OVERLAY: drawSinOverLay(); break;
         case GEN_OVERLAY: drawGenOverLay(); break;
     }
-    if (takeExprInput) {
+    if (graphMode) {
         drawTextBox();
         for (int i = 0; i < MAX_WIDTH; i++)
             fY[i] = -INFINITY;
@@ -198,6 +208,11 @@ void iMouse(int button, int state, int x, int y)
             X0 = x, Y0 = y;
             if (button == GLUT_LEFT_BUTTON) {
                 clickedState = 1;
+                integerInput = 0;
+                if (y <= 22) {
+                    handleBottomOverlay(0);
+                    return;
+                }
                 if (showHelp) {
                     if (x >= width - 25 && y >= height - 25) {
                         showHelp = 0;
@@ -231,7 +246,7 @@ void iMouse(int button, int state, int x, int y)
             int r          = selectCurve(x, y);
             shouldDeselect = r > 1; // should deselect others on mouse up
             if (r) {
-                if (takeExprInput) takeExprInput = 0;
+                if (graphMode) graphMode = 0;
                 // remember mouse click position and curve states
                 for (int i = 0; i < n_sines; i++) {
                     A0[i] = A[i], L0[i] = L[i], P0[i] = P[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
@@ -288,7 +303,7 @@ void iMouse(int button, int state, int x, int y)
             fourier();
         }
         // stop input on click on empty space
-        if (takeExprInput && panning && sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0)) < 3.0) takeExprInput = 0;
+        if (graphMode && panning && sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0)) < 3.0) graphMode = 0;
         if (panning) panningActive = panning = 0;
         if (n_selected > 0) {
             if (shouldDeselect) {
@@ -315,65 +330,169 @@ void iMouse(int button, int state, int x, int y)
 
 void iResize(int w, int h)
 {
+    int w0, h0;
+    w0 = width, h0 = height;
     width = w, height = h;
     N = width / dx + 2;
+    originX += (w - w0) / 2.0;
+    originY += (h - h0) / 2.0;
+    panX = originX - w / 2.0;
+    panY = originY - h / 2.0;
     exprSetScreenRes(w, h);
     resized = 1;
 }
 void iKeyboard(unsigned char key)
 {
     static int isFullScreen = 0;
-    switch (key) {
-        case 'Z' - 'A' + 1: // ctrl + Z
-            for (int i = 0; i < n_sines; i++)
-                A[i] = A0[i], L[i] = L0[i], P[i] = P0[i];
-            break;
-        case 'G' - 'A' + 1: // ctrl + G
-            deselectAll();
-            takeExprInput = !takeExprInput;
-            break;
-        case 27: // escape
-            if (takeExprInput) { takeExprInput = 0; }
-            else if (isFullScreen) {
-                glutReshapeWindow(1280, 720);
-                isFullScreen = 0;
-            }
-            break;
-        case 'f':
-        case 'F':
-            if (isFullScreen)
-                glutReshapeWindow(1280, 720);
-            else
-                glutFullScreen();
-            isFullScreen = !isFullScreen;
-            break;
-        case 'z':
-        case 'Z':
-            if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
-                zoom(-1, -1, -1);
-            else
-                zoom(1, -1, -1);
-            break;
-        case 'q': exit(0); break;
+    if (glutGetModifiers() & GLUT_ACTIVE_ALT) {
+        switch (toupper(key)) {
+            case 'A':
+                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT) {
+                    // alt+shift+a
+                    for (int i = 0; i < n_sines; i++)
+                        A[i] *= 0.99;
+                }
+                else {
+                    // alt+a
+                    // alt+shift+a
+                    for (int i = 0; i < n_sines; i++)
+                        A[i] *= 1.01;
+                }
+                break;
+            case 'F':
+                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT) {
+                    // alt+shift+f
+                    for (int i = 0; i < n_sines; i++)
+                        L[i] /= 0.99;
+                }
+                else {
+                    // alt+f
+                    for (int i = 0; i < n_sines; i++)
+                        L[i] /= 1.01;
+                }
+                break;
+            case 'P':
+                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT) {
+                    // alt+shift+p
+                    for (int i = 0; i < n_sines; i++)
+                        P[i] -= 10 * L[i] / 360;
+                }
+                else {
+                    // alt+p
+                    for (int i = 0; i < n_sines; i++)
+                        P[i] += 10 * L[i] / 360;
+                }
+                break;
+            case 'S': // alt + S
+                tracersSynced = (glutGetModifiers() & GLUT_ACTIVE_SHIFT) ? 0 : 1;
+                break;
+        }
     }
-    if (takeExprInput) {
-        takeMathInput(key);
-        return;
-    }
-    switch (key) {
-        case '+':
-            if (n_sines < MAX_SINES) addSine();
-            break;
-        case '-':
-        case (unsigned char)127: // delete
-            if (n_sines >= 0) removeSine();
-            break;
-        case 'A' - 'A' + 1: { // ctrl + A
-            for (int i = 0; i < n_sines; i++)
-                selected[i] = 1;
-            n_selected = n_sines;
-        } break;
-        default: break;
+    else {
+        switch (key) {
+            case 'Z' - 'A' + 1: // ctrl + Z
+                for (int i = 0; i < n_sines; i++)
+                    A[i] = A0[i], L[i] = L0[i], P[i] = P0[i];
+                break;
+            case 'D' - 'A' + 1: // ctrl + G
+                drawMode     = 1;
+                drawingIndex = 0;
+                deselectAll();
+                break;
+            case 'G' - 'A' + 1: // ctrl + G
+                deselectAll();
+                graphMode = !graphMode;
+                break;
+            case 'h':
+            case 'H': showHelp = !showHelp; break;
+            case 'O' - 'A' + 1: // ctrl + 0
+                backToOrigin();
+                break;
+            case 'S' - 'A' + 1: // ctrl + 0
+                drawCurves = !drawCurves;
+                break;
+            case 'T' - 'A' +
+                1: // ctrl + T
+            {
+                int i = 0;
+                while (i <= n_sines && !(tracerState[i] & 1))
+                    i++;
+                if (i == n_sines + 1)
+                    showAllTracers();
+                else
+                    hideAllTracers();
+            } break;
+            case 'P' - 'A' +
+                1: // ctrl + T
+            {
+                int i = 0;
+                while (i <= n_sines && (tracerState[i] & 2))
+                    i++;
+                if (i == n_sines + 1)
+                    resumeAllTracers();
+                else
+                    pauseAllTracers();
+            } break;
+            case 127: // delete
+                if (n_sines >= 0) removeSine();
+                break;
+            case 27: // escape
+                if (graphMode) { graphMode = 0; }
+                else if (isFullScreen) {
+                    glutReshapeWindow(1280, 720);
+                    isFullScreen = 0;
+                }
+                break;
+            case 'f':
+            case 'F':
+                if (isFullScreen)
+                    glutReshapeWindow(1280, 720);
+                else
+                    glutFullScreen();
+                isFullScreen = !isFullScreen;
+                break;
+            case 'z':
+            case 'Z':
+                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
+                    zoom(-1, -1, -1);
+                else
+                    zoom(1, -1, -1);
+                break;
+            case 'q': exit(0); break;
+            default: {
+                if (integerInput) {
+                    if (!takeIntInput(key))
+                        integerInput = 0;
+                    else {
+                        int n0 = n_sines;
+                        int n  = atoi(numStr);
+                        if (n > n0) {
+                            for (int i = n0; i < n; i++)
+                                addSine();
+                        }
+                        else {
+                            for (int i = n0; i > n; i--)
+                                removeSine();
+                        }
+                    }
+                }
+                else if (graphMode) {
+                    takeMathInput(key);
+                    return;
+                }
+                else {
+                    switch (key) {
+                        case '+': changeTracerSpeed(1); break;
+                        case '-': changeTracerSpeed(-1); break;
+                        case 'A' - 'A' + 1: { // ctrl + A
+                            for (int i = 0; i < n_sines; i++)
+                                selected[i] = 1;
+                            n_selected = n_sines;
+                        }
+                    }
+                }
+            } break;
+        }
     }
 }
 
@@ -381,10 +500,14 @@ void iSpecialKeyboard(unsigned char key)
 {
     switch (key) {
         case GLUT_KEY_END: exit(0); break;
+        case GLUT_KEY_INSERT: addSine(); break;
         case GLUT_KEY_RIGHT: pan(-10, 0); break;
         case GLUT_KEY_LEFT: pan(10, 0); break;
         case GLUT_KEY_UP: pan(0, -10); break;
         case GLUT_KEY_DOWN: pan(0, 10); break;
+        case GLUT_KEY_PAGE_UP: zoom(1, -1, -1); break;
+        case GLUT_KEY_PAGE_DOWN: zoom(-1, -1, -1); break;
+        case GLUT_KEY_F1: showHelp = !showHelp; break;
     }
 }
 
@@ -409,6 +532,7 @@ double frequency(int index) { return 1.0 / exprLength(L[index]); }
 double phase(int index)
 {
     double p = fmod(-360.0 * P[index] / L[index], 360.0);
+    if (markedCosine[index]) p -= 90.0;
     if (p > 180.0)
         p -= 360.0;
     else if (p < -180.0)
@@ -416,13 +540,40 @@ double phase(int index)
     if (fabs(p) < 0.001) p = 0;
     return p;
 }
-void getEquation(int index, char* str);
+void equation(int index, char* str, int size)
+{
+    double      a = amplitude(index);
+    double      w = 2 * PI * frequency(index);
+    double      p = phase(index);
+    const char* f = markedCosine[index] ? "cos" : "sin";
+    if (fabs(p) < 0.001)
+        snprintf(str, size, "y = %0.3lf %s(%0.3lfx)", a, f, w, fabs(p));
+    else if (p > 0.0)
+        snprintf(str, size, "y = %0.3lf %s(%0.3lfx + %0.3lf)", a, f, w, fabs(p));
+    else
+        snprintf(str, size, "y = %0.3lf %s(%0.3lfx - %0.3lf)", a, f, w, fabs(p));
+}
 
 void backToOrigin()
 {
     panX = panY = 0;
     originX     = width / 2;
     originY     = height / 2;
+}
+void backToUnitScale()
+{
+    double scale0 = scale;
+    double x, y;
+    x       = originX;
+    y       = originY;
+    scale   = 1.0;
+    panX    = originX - width / 2.0;
+    panY    = originY - height / 2.0;
+    originX = width / 2.0 + panX;
+    originY = height / 2.0 + panY;
+    exprScaleBounds(scale);
+    exprPan(panX, panY);
+    resized = 1;
 }
 
 void drawAxis()
@@ -578,32 +729,40 @@ int selectCurve(int x, int y)
 }
 void addSine()
 {
-    A[n_sines] = iRandom(50, height / 4);
-    L[n_sines] = iRandom(150, width / 2);
-    P[n_sines] = iRandom(0, width);
-    iRandomColor(1, 1, C[n_sines]);
-    n_sines++;
+    if (n_sines < MAX_SINES) {
+        int i = n_sines++;
+        iRandomColor(1, 1, C[i]);
+        if (!graphMode) {
+            A[i] = iRandom(50, height / 4);
+            L[i] = iRandom(150, width / 2);
+            P[i] = iRandom(0, width);
+        }
+        else
+            fourier();
+    }
 }
 
 void removeSine()
 {
-    if (n_selected > 0) {
-        int i, r;
-        for (i = 0, r = 0; i < n_sines; i++) {
-            if (selected[i]) {
-                r++;
-                selected[i] = 0;
+    if (n_sines > 0) {
+        if (n_selected > 0) {
+            int i, r;
+            for (i = 0, r = 0; i < n_sines; i++) {
+                if (selected[i]) {
+                    r++;
+                    selected[i] = 0;
+                }
+                else if (r > 0) {
+                    A[i - r] = A[i], L[i - r] = L[i], P[i - r] = P[i];
+                    C[i - r][0] = C[i][0], C[i - r][1] = C[i][1], C[i - r][2] = C[i][2];
+                }
             }
-            else if (r > 0) {
-                A[i - r] = A[i], L[i - r] = L[i], P[i - r] = P[i];
-                C[i - r][0] = C[i][0], C[i - r][1] = C[i][1], C[i - r][2] = C[i][2];
-            }
+            n_sines -= r;
         }
-        n_sines -= r;
+        else
+            n_sines--;
+        n_selected = 0;
     }
-    else
-        n_sines--;
-    n_selected = 0;
 }
 
 void drawTextBox()
@@ -617,6 +776,20 @@ void drawTextBox()
     iText(width * 0.375 + (w - l) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
 }
 
+int takeIntInput(unsigned char key)
+{
+    if (key == '\b') {
+        if (numPos >= 0) numStr[--numPos] = '\0';
+    }
+    else {
+        if (!isdigit(key) || numPos == 3) return 0;
+        if (numPos == 1 && numStr[0] == '0')
+            numStr[0] = key;
+        else
+            numStr[numPos++] = key;
+    }
+    return 1;
+}
 void takeMathInput(unsigned char key)
 {
     if (isalnum(key))
@@ -625,6 +798,7 @@ void takeMathInput(unsigned char key)
         switch (key) {
             case 22: // Ctrl + V
             {
+#ifdef WIN32
                 HWND hnd = GetActiveWindow();
                 if (OpenClipboard(hnd)) {
                     if (IsClipboardFormatAvailable(CF_TEXT)) {
@@ -634,6 +808,7 @@ void takeMathInput(unsigned char key)
                     }
                     CloseClipboard();
                 }
+#endif
             } break;
             case ' ':
             case '=':
@@ -904,7 +1079,7 @@ void handleSupOverlay(int dragging)
         if (dragging) return;
         if (0 <= dy && dy <= 30) {
             // graph
-            takeExprInput = 1;
+            graphMode = 1;
         }
         else if (dy <= 60) {
             // hand-draw
@@ -998,15 +1173,24 @@ void handleSinOverlay(int dragging)
         // phase
         if (!dragging || dragSelection == 4) {
             dragSelection = 4;
-            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
-                P[sinI] = -1.0 * (dx - 5) / (w - 10) * L[sinI] + L[sinI] / 2.0;
+            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55)) {
+                double deg = -360.0 * (dx - 5) / (w - 10) + 180.0;
+                if (fabs(fmod(deg, 30.0)) < 5.0) deg = round(deg / 30.0) * 30.0;
+                if (fabs(fmod(deg, 45.0)) < 5.0) deg = round(deg / 45.0) * 45.0;
+                P[sinI] = deg / 360.0 * L[sinI];
+            }
         }
     }
     else {
         if (dragging) return;
         if (dy <= 30) {
             // sine/cosine
-            markedCosine[sinI] = !markedCosine;
+            if (markedCosine[sinI])
+                P[sinI] += L[sinI] / 4.0;
+            else
+                P[sinI] -= L[sinI] / 4.0;
+            markedCosine[sinI] = !markedCosine[sinI];
+            return;
         }
         else if (dy <= 195) {
             iRandomColor(1.0, 1.0, C[sinI]);
@@ -1067,25 +1251,58 @@ void drawGenOverLay()
         drawMenu("Show Grid", w, 30, 0, 390, 1, 0);
     drawMenu("Show Help", w, 30, 0, 420, 1, 0);
 }
+
+void changeTracerSpeed(int dir)
+{
+    double t  = iGetTime();
+    double v0 = tracerSpeed, v;
+    v         = tracerSpeed += dir * 0.5;
+    if (fabs(v) < 0.01) tracerSpeed = v = -v0;
+    if (tracersSynced)
+        tracerSyncdt = t - v0 / v * (t - tracerSyncdt);
+    else {
+        for (int i = 0; i <= n_sines; i++)
+            tracerdt[i] = t - v0 / v * (t - tracerdt[i]);
+    }
+}
+
+void hideAllTracers()
+{
+    for (int i = 0; i <= n_sines; i++)
+        hideTracer(i);
+}
+void showAllTracers()
+{
+    for (int i = 0; i <= n_sines; i++)
+        showTracer(i);
+}
+void resumeAllTracers()
+{
+    double t = iGetTime();
+    for (int i = 0; i <= n_sines; i++) {
+        tracerdt[i] += t - tracerPt[i];
+        tracerState[i] &= ~2;
+    }
+}
+void pauseAllTracers()
+{
+    double t = iGetTime();
+    for (int i = 0; i <= n_sines; i++) {
+        tracerPt[i] = t;
+        tracerState[i] |= 2;
+    }
+}
+
 void handleGenOverlay(int dragging)
 {
     static int w = 220, h = 420;
     int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
     if (300 <= dy && dy <= 330) {
         // tracer speed
-        double t  = iGetTime();
-        double v0 = tracerSpeed, v;
         if (dx >= w - 100 && dx <= w - 70)
-            v = tracerSpeed -= 0.5;
+            changeTracerSpeed(-1);
         else if (dx >= w - 30)
-            v = tracerSpeed += 0.5;
-        if (fabs(v) < 0.01) tracerSpeed = v = -v0;
-        if (tracersSynced)
-            tracerSyncdt = t - v0 / v * (t - tracerSyncdt);
-        else {
-            for (int i = 0; i <= n_sines; i++)
-                tracerdt[i] = t - v0 / v * (t - tracerdt[i]);
-        }
+            changeTracerSpeed(1);
     }
     else {
         if (dragging) return;
@@ -1108,29 +1325,19 @@ void handleGenOverlay(int dragging)
         }
         else if (dy <= 150) {
             // resume tracers
-            double t = iGetTime();
-            for (int i = 0; i <= n_sines; i++) {
-                tracerdt[i] += t - tracerPt[i];
-                tracerState[i] &= ~2;
-            }
+            resumeAllTracers();
         }
         else if (dy <= 180) {
             // pause tracers
-            double t = iGetTime();
-            for (int i = 0; i <= n_sines; i++) {
-                tracerPt[i] = t;
-                tracerState[i] |= 2;
-            }
+            pauseAllTracers();
         }
         else if (dy <= 210) {
             // show tracers
-            for (int i = 0; i <= n_sines; i++)
-                showTracer(i);
+            showAllTracers();
         }
         else if (dy <= 240) {
             // hide tracers
-            for (int i = 0; i <= n_sines; i++)
-                hideTracer(i);
+            hideAllTracers();
         }
         else if (dy <= 270) {
             // sync/desync
@@ -1159,7 +1366,6 @@ void locateTracers()
 {
     double t = iGetTime();
     double x = t * tracerSpeed - tracerSyncdt;
-    double s = 0.0;
     for (int i = 0; i <= n_sines; i++) {
         if ((tracerState[i] & 1) && !(tracerState[i] & 2)) { // showed and resumed
             if (tracersSynced) {
@@ -1177,17 +1383,16 @@ void locateTracers()
                 if (tracersUnidirectional) {
                     x = fmod(x, width);
                     if (i < n_sines)
-                        tracerX[i] = fmod(x + P[i] + width + originX, width), s += fmod(s + P[i] + width, width);
+                        tracerX[i] = fmod(x + P[i] + width + originX, width);
                     else
-                        tracerX[n_sines] = fmod(x + s + width + originX, width);
+                        tracerX[n_sines] = fmod(x + width + originX, width);
                 }
                 else {
                     x = fmod(x, 2 * width);
                     if (i < n_sines)
-                        tracerX[i] = fabs(fmod(x + P[i] + 2 * width + originX, 2 * width) - width),
-                        s += fmod(s + P[i] + 2 * width, 2 * width);
+                        tracerX[i] = fabs(fmod(x + P[i] + 2 * width + originX, 2 * width) - width);
                     else
-                        tracerX[n_sines] = fabs(fmod(x + s + 2 * width + originX, 2 * width) - width);
+                        tracerX[n_sines] = fabs(fmod(x + 2 * width + originX, 2 * width) - width);
                 }
             }
         }
@@ -1225,107 +1430,156 @@ void resumeTracer(int i)
 }
 void showTracer(int i) { tracerState[i] |= 1; }
 void hideTracer(int i) { tracerState[i] &= ~1; }
+
+// 1 highlight, 2 to always highlight
+void drawBottomMenu(const char* text, int w, int dx, int highlight, int large)
+{
+    if (dx < 0) dx += width;
+    iSetColor(255, 255, 255);
+    if (strlen(text) > 0)
+        iText(dx + 5, 4 + 3 * (!large), text, large ? GLUT_BITMAP_TIMES_ROMAN_24 : GLUT_BITMAP_HELVETICA_12);
+    if (highlight) {
+        if (highlight == 2 || mY <= 22 && mX >= dx && mX <= dx + w) {
+            iSetColorEx(255, 255, 255, 0.1);
+            iFilledRectangle(dx, 0, w, 22);
+            iSetColor(255, 255, 255);
+            iRectangleEx(dx, 0, w, 22, 1, 10, 5);
+        }
+    }
+}
+
+void drawBottomScaleMenu(const char* text1, const char* text2, int w1, int w2, int dx, int h1, int h2, int highlight)
+{
+    drawBottomMenu("-", 25, dx, 1, 1);
+    drawBottomMenu(text1, w1, dx + 30, h1, 0);
+    drawBottomMenu(text2, w2, dx + w1 + 30, h2, 0);
+    drawBottomMenu("+", 25, dx + w1 + w2 + 30, 1, 1);
+}
+
+void drawMiniGrid(int w, int h, int dx, int dy)
+{
+    if (dx < 0) dx += width;
+    iSetColor(255, 255, 255);
+    iLineEx(dx, dy + h / 3.0, w, 0);
+    iLineEx(dx, dy + 2 * h / 3.0, w, 0);
+    iLineEx(dx + w / 3.0, dy, 0, h);
+    iLineEx(dx + 2 * w / 3.0, dy, 0, h);
+}
+
+int eqnLen, cntrLen;
+
 void drawBottomOverlay()
 {
     char text[64];
+    int  w_;
     iSetColorEx(45, 52, 54, 0.95);
     iFilledRectangle(0, 0, width, 22);
-    iSetColor(255, 255, 255);
-    iText(width - 20, 4, "+", GLUT_BITMAP_TIMES_ROMAN_24);
-    // iSetColorEx(0, 0, 0, 0.2);
-    // iFilledRectangle(width - 26, 0, 26, 22);
-    if (mY <= 22 && mX >= width - 26) {
-        iSetColor(255, 255, 255);
-        iRectangleEx(width - 26, 0, 25, 22, 1, 10, 5);
-    }
-    snprintf(text, 80, "%3d", n_sines);
-    iSetColor(255, 255, 255);
-    iText(width - 110, 8, text, GLUT_BITMAP_HELVETICA_12);
-    if (mY <= 22 && mX >= width - 110 && mX <= width - 95) {
-        iSetColor(255, 255, 255);
-        iRectangleEx(width - 112, 0, 26, 22, 1, 10, 5);
-    }
-    iText(width - 85, 8, "sinusoids", GLUT_BITMAP_HELVETICA_12);
-    iText(width - 137, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
-    // iSetColorEx(0, 0, 0, 0.2);
-    // iFilledRectangle(width - 143, 0, 26, 22);
-    if (mY <= 22 && mX >= width - 143 && mX <= width - 118) {
-        iSetColor(255, 255, 255);
-        iRectangleEx(width - 143, 0, 25, 22, 1, 10, 5);
-    }
-
-    iSetColor(255, 255, 255);
-    iText(width - 166, 4, "+", GLUT_BITMAP_TIMES_ROMAN_24);
-    // iSetColorEx(0, 0, 0, 0.2);
-    // iFilledRectangle(width - 172, 0, 26, 22);
-    if (mY <= 22 && mX >= width - 172) {
-        iSetColor(255, 255, 255);
-        iRectangleEx(width - 172, 0, 25, 22, 1, 10, 5);
-    }
-    snprintf(text, 64, "Tracer speed %0.0lf px/s", tracerSpeed);
-    if (tracersUnidirectional)
-        strcat(text, "  >>");
-    else
-        strcat(text, "  <>");
-    iSetColor(255, 255, 255);
-    iText(width - 325, 8, text, GLUT_BITMAP_HELVETICA_12);
-    if (mY <= 22 && mX >= width - 198 && mX <= width - 55) {
-        iSetColor(255, 255, 255);
-        iRectangleEx(width - 198, 0, 26, 22, 1, 10, 5);
-    }
-    iText(width - 348, 4, "-", GLUT_BITMAP_TIMES_ROMAN_24);
-    // iSetColorEx(0, 0, 0, 0.2);
-    // iFilledRectangle(width - 354, 0, 26, 22);
-    if (mY <= 22 && mX >= width - 354 && mX <= width - 258) {
-        iSetColor(255, 255, 255);
-        iRectangleEx(width - 354, 0, 25, 22, 1, 10, 5);
-    }
-    iSetColor(255, 255, 255);
-    snprintf(text, 64, "Scale: %0.2lf", scale);
-    iText(width - 430, 8, text, GLUT_BITMAP_HELVETICA_12);
-    snprintf(text, 64, "Origin: (%4.0lf, %4.0lf)", originX, originY);
-    iText(width - 550, 8, text, GLUT_BITMAP_HELVETICA_12);
+    snprintf(text, 64, "%3d", n_sines);
+    drawBottomScaleMenu(text, " sinusoids", 30, 65, -165, 1 + integerInput, 0, 1);
+    snprintf(text, 64, "Tracer Speed %0.1lf", tracerSpeed);
+    drawBottomScaleMenu(text, tracersUnidirectional ? ">>" : "<>", 125, 25, -385, 0, 1, 1);
+    drawMiniGrid(16, 16, -410, 3);
+    drawBottomMenu("", 25, -415, 1, 1);
+    snprintf(text, 64, "Scale: %0.3lf", scale);
+    drawBottomMenu(text, 80, -505, 1, 0);
+    snprintf(
+        text, 64, " Center: (%0.2lf, %0.2lf)", exprLength(width / 2.0 - originX), exprLength(height / 2.0 - originY));
+    w_ = cntrLen = strlen(text) * 6 + 2;
+    drawBottomMenu(text, w_, -(510 + w_), 1, 0);
     if (n_selected == 1) {
         int i = 0;
         while (!selected[i])
             i++;
-        double a = amplitude(i);
-        double w = 2 * PI * frequency(i);
-        double p = phase(i);
-        if (p >= 0)
-            snprintf(text, 64, "y = %00.3lf sin ( %0.3lf x + %0.3lf )", a, w, p);
-        else
-            snprintf(text, 64, "y = %0.3lf sin ( %0.3lf x - %0.3lf )", a, w, fabs(p));
-        iText(55, 8, text, GLUT_BITMAP_HELVETICA_12);
+        equation(i, text, 64);
+        w_ = eqnLen = strlen(text) * 6 + 2;
+        drawBottomMenu(text, w_, 50, 1, 0);
     }
+    else if (iGetTime() < 20.0)
+        drawBottomMenu("Press H or F1 for Help", 136, 50, 0, 0);
+
+    iSetColorEx(0, 0, 0, 0.2);
+    iFilledRectangle(0, 0, 40, 22);
     iSetColor(255, 255, 255);
     if (drawMode)
         iText(5, 8, "_--", GLUT_BITMAP_HELVETICA_18);
-    else if (takeExprInput)
+    else if (graphMode)
         iText(5, 8, "f(x,y)", GLUT_BITMAP_HELVETICA_12);
     else
         iText(5, 5, " ~ ", GLUT_BITMAP_TIMES_ROMAN_24);
-    iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(0, 0, 40, 22);
 }
-void handleBottomOverlay() {}
+void handleBottomOverlay(int dragging)
+{
+    int x = X0, xn = width - X0;
+    if (360 <= xn && xn <= 385) {
+        // - tracer speed
+        changeTracerSpeed(-1);
+    }
+    else if (185 <= xn && xn <= 210) {
+        // + tracer speed
+        changeTracerSpeed(1);
+    }
+    else {
+        if (dragging) return;
+        if (50 <= x && x <= 50 + eqnLen) {
+            // eqn
+            X0 = 50, Y0 = 22;
+            overlayState = SIN_OVERLAY;
+            newOverlay   = 1;
+        }
+        else if (510 <= xn && xn <= 510 + cntrLen) {
+            // center
+            backToOrigin();
+        }
+        else if (425 <= xn && xn <= 505) {
+            // scale
+            backToUnitScale();
+        }
+        else if (390 <= xn && xn <= 415) {
+            // show/hide grid
+            showGrid = !showGrid;
+        }
+        else if (210 <= xn && xn <= 235) {
+            // sync/desync tracers
+            tracersUnidirectional = !tracersUnidirectional;
+        }
+        else if (135 <= xn && xn <= 165) {
+            // - n_sines
+            removeSine();
+        }
+        else if (105 <= xn && xn <= 135) {
+            // edit n_sines
+            integerInput = 1;
+        }
+        else if (10 <= xn && xn <= 40) {
+            // + n_sinesif (n_sines < MAX_SINES) {
+            int i = n_sines;
+            deselectAll();
+            addSine();
+            n_selected = selected[i] = 1;
+            X0 = width, Y0 = 22;
+            overlayState = SIN_OVERLAY;
+            newOverlay   = 1;
+        }
+    }
+}
 
 int inOverlay(int x, int y) { return overLayLeft <= x && x <= overlayRight && overlayBottom <= y && y <= overlayTop; }
 
-const char helpStrings[14][128] = {
+const char helpStrings[15][128] = {
     "Drag mouse on blank area to pan. Scroll (mouse middle button) to zoom in/out.",
     "Click to select a curve and drag to adjust the shape. Scroll to change phase.",
     "You can also Ctrl select multiple curves and drag adjust all of them.",
     "Selecting the summation curve selects and adjusts all the composing sinusoids.",
-    "Right clicking anywhere gives you context menus for further customiztion options.",
+    "Right clicking anywhere gives you context menus for further customization options.",
     "Tracers can be adjusted via the general context menu (right clicking on empty area).",
     "You can reshape the summation to the graph of an equation or a hand-drawn curve.",
     "Ctrl + G switches you to Graph Mode.",
     "Ctrl + D switches you to Drawing Mode.",
+    "You can also access these modes via the summation curve context menu.",
     "The bottom bar gives you information about the scale, translation of the graph",
     "as well as the tracer speed, the number of curves and their equations.",
     "Press the +/- button in the bottomleft corner to add/remove curves.",
-    "Or you can enter any number (upto 512) to randomly generate that number of curves.",
+    "Or you can enter any number (upto 256) to randomly generate that number of curves.",
     "Enjoy playing with the sinusoids!"};
 
 const char shortcuts[26][2][128] = {
@@ -1341,7 +1595,7 @@ const char shortcuts[26][2][128] = {
     {"Alt + Shift + P", "Subtract Phase"},
     {"Ctrl + S", "Show/Hide All Curves"},
     {"Ctrl + Z", "Undo Last Adjustment"},
-    {"F1 Ctrl + H", "Show Help"},
+    {"F1 H", "Show Help"},
     {"+", "Increase Tracer Speed"},
     {"-", "Decrease Tracer Speed"},
     {"Alt + S", "Sync Tracers"},
@@ -1357,7 +1611,8 @@ const char shortcuts[26][2][128] = {
     {"Q End", "Exit"},
 };
 
-const char aboutString[][128] = {"A simple application written in C, to explore and play with sines and cosines.",
+const char aboutString[][128] = {"A simple application written in C based on the OpenGL-based iGraphics library, to "
+                                 "explore and play with sines and cosines.",
                                  "Ashrafur Rahman | October 2020"};
 
 void drawHelpScreen()
@@ -1370,7 +1625,7 @@ void drawHelpScreen()
     iText(width - 15, height - 15, "x", GLUT_BITMAP_HELVETICA_12);
     iText(width - 485, height - 30, "Help", GLUT_BITMAP_HELVETICA_18);
     iLine(width - 490, height - 40, width - 15, height - 40);
-    for (int i = 0; i < 14; i++) {
+    for (int i = 0; i < 15; i++) {
         iText(width - 485, height - i * 20 - 60 - 5 * (i == 13), helpStrings[i], GLUT_BITMAP_HELVETICA_12);
     }
     iText(width - 485, height - 360, "Shortcuts", GLUT_BITMAP_HELVETICA_18);
@@ -1380,7 +1635,7 @@ void drawHelpScreen()
         iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 390, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
     }
     iText(width - 485, 45, "About", GLUT_BITMAP_HELVETICA_12);
-    iLine(width - 490, 40, width - 135, 40);
+    iLine(width - 490, 40, width - 85, 40);
     for (int i = 0; i < 2; i++)
         iText(width - 485, 25 - i * 14, aboutString[i], GLUT_BITMAP_HELVETICA_10);
 }
