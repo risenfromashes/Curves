@@ -1610,8 +1610,8 @@ const char shortcuts[26][2][128] = {
     {"Q End", "Exit"},
 };
 
-const char aboutString[][128] = {"A simple application written in C based on the OpenGL-based iGraphics library, to "
-                                 "explore and play with sines and cosines.",
+const char aboutString[][128] = {"A simple application written in C based on the OpenGL-based iGraphics library,",
+                                 "to explore and play with sines and cosines.",
                                  "Ashrafur Rahman | October 2020"};
 
 void drawHelpScreen()
@@ -1633,8 +1633,8 @@ void drawHelpScreen()
         iText(width - 485 + 250 * (i >= 13), height - (i % 13) * 15 - 390, shortcuts[i][0], GLUT_BITMAP_HELVETICA_12);
         iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 390, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
     }
-    iText(width - 485, 45, "About", GLUT_BITMAP_HELVETICA_12);
-    iLine(width - 490, 40, width - 85, 40);
-    for (int i = 0; i < 2; i++)
-        iText(width - 485, 25 - i * 14, aboutString[i], GLUT_BITMAP_HELVETICA_10);
+    iText(width - 485, 65, "About", GLUT_BITMAP_HELVETICA_12);
+    iLine(width - 490, 60, width - 115, 60);
+    for (int i = 0; i < 3; i++)
+        iText(width - 485, 45 - i * 14, aboutString[i], GLUT_BITMAP_HELVETICA_10);
 }
