@@ -16,9 +16,10 @@ int       clickedState = 0;
 double    X0, Y0;
 int       mX, mY;
 double    overLayLeft, overlayRight, overlayTop, overlayBottom;
-int       newOverlay = 0;
-int       drawCurves = 1;
-int       resized    = 0;
+int       newOverlay   = 0;
+int       drawCurves   = 1;
+int       resized      = 0;
+int       isFullScreen = 0;
 
 int showGrid = 0;
 
@@ -340,9 +341,18 @@ void iResize(int w, int h)
     exprSetScreenRes(w, h);
     resized = 1;
 }
+
+void toggleFullScreen()
+{
+    if (isFullScreen)
+        glutReshapeWindow(1280, 720);
+    else
+        glutFullScreen();
+    isFullScreen = !isFullScreen;
+}
+
 void iKeyboard(unsigned char key)
 {
-    static int isFullScreen = 0;
     if (glutGetModifiers() & GLUT_ACTIVE_ALT) {
         switch (toupper(key)) {
             case 'A':
@@ -443,13 +453,7 @@ void iKeyboard(unsigned char key)
                 }
                 break;
             case 'f':
-            case 'F':
-                if (isFullScreen)
-                    glutReshapeWindow(1280, 720);
-                else
-                    glutFullScreen();
-                isFullScreen = !isFullScreen;
-                break;
+            case 'F': toggleFullScreen(); break;
             case 'z':
             case 'Z':
                 if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
@@ -498,6 +502,7 @@ void iKeyboard(unsigned char key)
 void iSpecialKeyboard(unsigned char key)
 {
     switch (key) {
+        case GLUT_KEY_F11: toggleFullScreen(); break;
         case GLUT_KEY_END: exit(0); break;
         case GLUT_KEY_INSERT: addSine(); break;
         case GLUT_KEY_RIGHT: pan(-10, 0); break;
@@ -1582,7 +1587,7 @@ const char helpStrings[15][128] = {
     "Enjoy playing with the sinusoids!"};
 
 const char shortcuts[26][2][128] = {
-    {"F", "Fullscreen"},
+    {"F F11", "Fullscreen"},
     {"Insert", "Add curve"},
     {"Delete", "Remove Curve"},
     {"Ctrl + A", "Select All Curves"},
