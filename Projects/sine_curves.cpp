@@ -227,7 +227,6 @@ void iMouse(int button, int state, int x, int y)
                             fY[i] += A[j] * sin(2 * PI / L[j] * ((i - originX) / scale - P[j])) * scale;
                     }
                     drawing = 1;
-                    // drawDir = 0;
                     return;
                 }
                 if (overlayState) {
@@ -519,11 +518,11 @@ int main()
     int    i;
     for (i = 0, x = 0; x <= MAX_WIDTH; x += dx, i++)
         X[i] = x;
-    for (i = 0; i < 10; i++)
+    for (i = 0; i < 7; i++)
         addSine();
     exprSetInitBounds(-5.0, 5.0, -5.0, 5.0);
     iSetTransparency(1);
-    iInitializeEx(width, height, "Demo!");
+    iInitializeEx(width, height, "Curves");
     return 0;
 }
 
@@ -1162,23 +1161,23 @@ void handleSinOverlay(int dragging)
             }
         }
     }
-    else if (205 <= dy && dy <= 225) {
-        if (!dragging || dragSelection == 3) {
-            dragSelection = 3;
-            double H      = 360.0 * dx / w;
-            iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
-        }
-    }
     else if (120 <= dy && dy <= 165) {
         // phase
         if (!dragging || dragSelection == 4) {
             dragSelection = 4;
             if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55)) {
-                double deg = -360.0 * (dx - 5) / (w - 10) + 180.0;
+                double deg = -360.0 * (dx - 5) / (w - 10) + 180.0 - 90.0 * markedCosine[sinI];
                 if (fabs(fmod(deg, 30.0)) < 5.0) deg = round(deg / 30.0) * 30.0;
                 if (fabs(fmod(deg, 45.0)) < 5.0) deg = round(deg / 45.0) * 45.0;
                 P[sinI] = deg / 360.0 * L[sinI];
             }
+        }
+    }
+    else if (205 <= dy && dy <= 225) {
+        if (!dragging || dragSelection == 3) {
+            dragSelection = 3;
+            double H      = 360.0 * dx / w;
+            iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
         }
     }
     else {
