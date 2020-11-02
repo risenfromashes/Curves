@@ -45,11 +45,12 @@ int    tracerState[MAX_SINES + 5] = {0}; // first bit set if tracer showed, seco
 double tracerPt[MAX_SINES + 5] = {0}, tracerdt[MAX_SINES + 5] = {0};
 double tracerSyncPt, tracerSyncdt                             = 0.0;
 int    tracersSynced = 0, tracersUnidirectional = 1;
-double tracerSpeed = 150.0; // pixel/second
+double tracerSpeed      = 150.0; // pixel/second
+int    tracerButtonMode = 0;
 
 double markedCosine[MAX_SINES + 5] = {0};
 
-int drawSummation = 1; // if 2, only summation is drawn
+int drawSummation = 1;
 
 int showHelp = 0;
 
@@ -396,7 +397,17 @@ void iKeyboard(unsigned char key)
                 }
                 break;
             case 'S': // alt + S
-                tracersSynced = (glutGetModifiers() & GLUT_ACTIVE_SHIFT) ? 0 : 1;
+                if (drawSummation == 2)
+                    drawSummation = 0;
+                else
+                    drawSummation = 2;
+                break;
+            case 'C':
+                if (drawSummation == 2)
+                    drawSummation = 1;
+                else
+                    drawCurves = !drawCurves;
+                if (!drawCurves) deselectAll();
                 break;
         }
     }
@@ -421,7 +432,7 @@ void iKeyboard(unsigned char key)
                 backToOrigin();
                 break;
             case 'S' - 'A' + 1: // ctrl + 0
-                drawCurves = !drawCurves;
+                tracersSynced = !tracersSynced;
                 break;
             case 'T' - 'A' +
                 1: // ctrl + T
@@ -646,10 +657,10 @@ void drawSines()
             }
             else {
                 qY[i] = pY[1] = cY[i] += originY;
-                if (drawCurves) iSetColorEx(255, 255, 255, alpha / 2);
+                if (drawSummation) iSetColorEx(255, 255, 255, alpha / 2);
             }
             if (fabs(tracerX[j] - X[i]) < 0.5) tracerY[j] = qY[i];
-            if (drawCurves && !(j < n_sines && drawSummation == 2) && !(j == n_sines && !drawSummation)) {
+            if ((j < n_sines && drawCurves) || (j == n_sines && drawSummation)) {
                 if (i > 0) {
                     crossesAxis = (pY[0] >= originY && pY[1] < originY) || (pY[0] < originY && pY[1] >= originY);
                     if (crossesAxis) {
@@ -667,7 +678,7 @@ void drawSines()
                 pX[3] = pX[0] = pX[1], pY[0] = pY[1];
             }
         }
-        if (drawCurves && !(j < n_sines && drawSummation == 2) && !(j == n_sines && !drawSummation)) {
+        if ((j < n_sines && drawCurves) || (j == n_sines && drawSummation)) {
             double stroke;
             int    dashed = 0;
             if (j < n_sines) {
@@ -693,7 +704,6 @@ void drawSines()
 // returns 0 if no curve is selected
 int selectCurve(int x, int y)
 {
-    if (!drawCurves) return 0;
     y -= (height / 2 + panY);
     double Y, C, minY = height;
     int    sine_index = -1;
@@ -706,8 +716,10 @@ int selectCurve(int x, int y)
             Y = C;
         if (fabs(Y) < fabs(minY)) {
             if ((0 <= y && y <= Y + 2) || (0 >= y && y >= Y - 2)) {
-                sine_index = i;
-                minY       = Y;
+                if ((i < n_sines && drawCurves) || (i == n_sines && drawSummation)) {
+                    sine_index = i;
+                    minY       = Y;
+                }
             }
         }
     }
@@ -943,8 +955,6 @@ void drawBasicOverlay(int w, int h)
     }
     iSetColorEx(45, 52, 54, 0.95);
     iFilledRectangle(overLayLeft, overlayBottom, w, h);
-    // iSetColorEx(255, 255, 255, 1.0);
-    // iRectangleEx(overLayLeft, overlayBottom, w, h, 2.5);
 }
 
 void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int aligned)
@@ -1048,8 +1058,8 @@ void drawSupOverLay()
         drawMenu("Hide Tracer", w, 30, 0, 210, 1, 0);
     else
         drawMenu("Show Tracer", w, 30, 0, 210, 1, 0);
-    if (drawSummation == 1)
-        drawMenu("Show Summation Only", w, 30, 0, 240, 1, 0);
+    if (drawCurves)
+        drawMenu("Hide Composing Sinusoids", w, 30, 0, 240, 1, 0);
     else
         drawMenu("Show Composing Sinusoids", w, 30, 0, 240, 1, 0);
     drawMenu("Hide", w, 30, 0, 270, 1, 0);
@@ -1119,14 +1129,11 @@ void handleSupOverlay(int dragging)
                 showTracer(n_sines);
         }
         else if (dy <= 240) {
-            // show summation only
-            if (drawSummation == 1)
-                drawSummation = 2;
-            else
-                drawSummation = 1;
+            // show/hide curves
+            drawCurves = !drawCurves;
         }
         else if (dy <= 270) {
-            // show summation only
+            // hide summation
             drawSummation = 0;
         }
         overlayState = 0;
@@ -1247,7 +1254,7 @@ void drawGenOverLay()
     drawBasicOverlay(w, h);
     drawMenu("Add Curve", w, 30, 0, 30, 1, 0);
     drawMenu("Remove Curve", w, 30, 0, 60, 1, 0);
-    if (drawCurves && drawSummation != 2)
+    if (drawCurves)
         drawMenu("Hide Curves", w, 30, 0, 90, 1, 0);
     else
         drawMenu("Show Curves", w, 30, 0, 90, 1, 0);
@@ -1294,11 +1301,16 @@ void hideAllTracers()
 {
     for (int i = 0; i <= n_sines; i++)
         hideTracer(i);
+    tracerButtonMode = 0;
 }
 void showAllTracers()
 {
     for (int i = 0; i <= n_sines; i++)
         showTracer(i);
+    if (tracersSynced)
+        tracerButtonMode = 2;
+    else
+        tracerButtonMode = 1;
 }
 void resumeAllTracers()
 {
@@ -1340,11 +1352,7 @@ void handleGenOverlay(int dragging)
         }
         else if (dy <= 90) {
             // show/hide curves
-            if (drawSummation == 2)
-                drawSummation = 1, drawCurves = 1;
-            else
-                drawCurves = !drawCurves;
-            if (!drawCurves) deselectAll();
+            drawCurves = !drawCurves;
         }
         else if (dy <= 120) {
             // Hide/show superposition
@@ -1493,7 +1501,26 @@ void drawMiniGrid(int w, int h, int dx, int dy)
     iLineEx(dx + 2 * w / 3.0, dy, 0, h);
 }
 
+void drawMiniTracers(int w, int h, int dx, int dy)
+{
+    if (dx < 0) dx += width;
+    iSetColor(255, 255, 255);
+    for (int i = 0; i < 3; i++)
+        iFilledCircle(dx + i * w / 2.0, dy + i * h / 2, 2.5, 25);
+}
+void drawMiniSyncTracers(int w, int h, int dx, int dy)
+{
+    if (dx < 0) dx += width;
+    iSetColor(255, 255, 255);
+    for (int i = 0; i < 3; i++)
+        iFilledCircle(dx + w / 2.0, dy + i * h / 2.0, 2.5, 25);
+}
+
 int eqnLen, cntrLen;
+
+// 0 for all tracers hidden
+// 1 for all tracers showed and not synced
+// 2 for all tracers showed and synced
 
 void drawBottomOverlay()
 {
@@ -1505,14 +1532,27 @@ void drawBottomOverlay()
     drawBottomScaleMenu(text, " sinusoids", 30, 65, -165, 1 + integerInput, 0, 1);
     snprintf(text, 64, "Tracer Speed %0.1lf", tracerSpeed);
     drawBottomScaleMenu(text, tracersUnidirectional ? ">>" : "<>", 125, 25, -385, 0, 1, 1);
-    drawMiniGrid(16, 16, -410, 3);
+    if (tracerButtonMode) {
+        iSetColorEx(255, 255, 255, .2);
+        iFilledRectangle(width - 415, 0, 25, 22);
+    }
+    if (tracersSynced)
+        drawMiniSyncTracers(14, 10, -410, 6);
+    else
+        drawMiniTracers(14, 10, -410, 6);
     drawBottomMenu("", 25, -415, 1, 1);
-    snprintf(text, 64, "Scale: %0.3lf", scale);
-    drawBottomMenu(text, 80, -505, 1, 0);
+    if (showGrid) {
+        iSetColorEx(255, 255, 255, .2);
+        iFilledRectangle(width - 455, 0, 25, 22);
+    }
+    drawMiniGrid(16, 16, -450, 3);
+    drawBottomMenu("", 25, -455, 1, 1);
+    snprintf(text, 64, " Scale: %0.3lf", scale);
+    drawBottomMenu(text, 85, -545, 1, 0);
     snprintf(
         text, 64, " Center: (%0.2lf, %0.2lf)", exprLength(width / 2.0 - originX), exprLength(height / 2.0 - originY));
     w_ = cntrLen = strlen(text) * 6 + 2;
-    drawBottomMenu(text, w_, -(510 + w_), 1, 0);
+    drawBottomMenu(text, w_, -(545 + w_), 1, 0);
     if (n_selected == 1) {
         int i = 0;
         while (!selected[i])
@@ -1553,15 +1593,27 @@ void handleBottomOverlay(int dragging)
             overlayState = SIN_OVERLAY;
             newOverlay   = 1;
         }
-        else if (510 <= xn && xn <= 510 + cntrLen) {
+        else if (545 <= xn && xn <= 545 + cntrLen) {
             // center
             backToOrigin();
         }
-        else if (425 <= xn && xn <= 505) {
+        else if (460 <= xn && xn <= 545) {
             // scale
             backToUnitScale();
         }
         else if (390 <= xn && xn <= 415) {
+            // show/hide grid
+            tracerButtonMode = (tracerButtonMode + 1) % 3;
+            switch (tracerButtonMode) {
+                case 0: hideAllTracers(); break;
+                case 1:
+                    tracersSynced = 0;
+                    showAllTracers();
+                    break;
+                case 2: tracersSynced = 1; break;
+            }
+        }
+        else if (430 <= xn && xn <= 455) {
             // show/hide grid
             showGrid = !showGrid;
         }
@@ -1620,13 +1672,13 @@ const char shortcuts[26][2][128] = {
     {"Alt + Shift + F", "Decrease Frequency"},
     {"Alt + P", "Add Phase"},
     {"Alt + Shift + P", "Subtract Phase"},
-    {"Ctrl + S", "Show/Hide All Curves"},
-    {"Ctrl + Z", "Undo Last Adjustment"},
+    {"Alt + C", "Show/Hide All Curves"},
+    {"Alt + S", "Show/Hide Summation Only"},
     {"F1 H", "Show Help"},
+    {"Ctrl + Z", "Undo Last Adjustment"},
     {"+", "Increase Tracer Speed"},
     {"-", "Decrease Tracer Speed"},
-    {"Alt + S", "Sync Tracers"},
-    {"Alt + Shift + S", "Desync Tracers"},
+    {"Ctrl + S", "Sync/Desync Tracers"},
     {"Ctrl + P", "Pause/Resume Tracers"},
     {"Ctrl + T", "Show/Hide Tracers"},
     {"Up/Downt", "Pan"},
