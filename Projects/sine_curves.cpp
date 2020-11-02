@@ -1140,7 +1140,7 @@ void drawSinOverLay()
     double a = amplitude(sinI);
     double f = fabs(frequency(sinI));
     double p = phase(sinI);
-    drawSlideMenu("Amplitude", a, 0, exprLength(height / 2.0), w, 45, 0, 75);
+    drawSlideMenu("Amplitude", a, 0, exprLength(height / 2.0 / scale), w, 45, 0, 75);
     drawSlideMenu("Frequency", f, 0.01, 1.0 / exprLength(50.0), w, 45, 0, 120);
     drawSlideMenu("Phase", p, -180, 180, w, 45, 0, 165);
     drawMenu("Change Color", w, 30, 0, 195, 1, 0);
