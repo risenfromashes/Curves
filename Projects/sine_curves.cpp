@@ -1,4 +1,4 @@
-#include "../ext.h"
+#include "ext.h"
 #include "expr.h"
 
 #define MAX_WIDTH 3840

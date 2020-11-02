@@ -1,8 +1,8 @@
-#include "iGraphics.h"
+#include "../iGraphics.h"
 #include <chrono>
 
 #ifdef FREEGLUT
-#include "OpenGL/include/freeglut.h"
+#include "../OpenGL/include/freeglut.h"
 #endif
 
 #ifndef PI
