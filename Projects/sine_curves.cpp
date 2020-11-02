@@ -427,8 +427,6 @@ void iKeyboard(unsigned char key)
                 deselectAll();
                 graphMode = !graphMode;
                 break;
-            case 'h':
-            case 'H': showHelp = !showHelp; break;
             case 'O' - 'A' + 1: // ctrl + 0
                 backToOrigin();
                 break;
@@ -706,7 +704,7 @@ void drawSines()
 int selectCurve(int x, int y)
 {
     y -= (height / 2 + panY);
-    double Y, C, minY = height;
+    double Y, C = 0, minY = height;
     int    sine_index = -1;
     for (int i = 0; i <= n_sines; i++) {
         if (i < n_sines) {
@@ -1563,7 +1561,7 @@ void drawBottomOverlay()
         drawBottomMenu(text, w_, 50, 1, 0);
     }
     else if (iGetTime() < 20.0)
-        drawBottomMenu("Press H or F1 for Help", 136, 50, 0, 0);
+        drawBottomMenu("Press F1 for Help", 136, 50, 0, 0);
 
     iSetColorEx(0, 0, 0, 0.2);
     iFilledRectangle(0, 0, 40, 22);
@@ -1675,7 +1673,7 @@ const char shortcuts[26][2][128] = {
     {"Alt + Shift + P", "Subtract Phase"},
     {"Alt + C", "Show/Hide All Curves"},
     {"Alt + S", "Show/Hide Summation Only"},
-    {"F1 H", "Show Help"},
+    {"F1", "Show Help"},
     {"Ctrl + Z", "Undo Last Adjustment"},
     {"+", "Increase Tracer Speed"},
     {"-", "Decrease Tracer Speed"},
