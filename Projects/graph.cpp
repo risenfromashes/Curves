@@ -1,4 +1,4 @@
-#include "../ext.h"
+#include "ext.h"
 #include "expr.h"
 
 char expr[256] = "";
@@ -39,9 +39,9 @@ void iMouse(int button, int state, int mx, int my)
 {
     if (state == GLUT_DOWN) {
         if (button == 3)
-            exprScale += 0.01;
+            exprScale += exprScale * 0.01;
         else if (button == 4)
-            exprScale -= 0.01;
+            exprScale -= exprScale * 0.01;
     }
     exprScaleBy(exprScale);
 }
@@ -108,7 +108,7 @@ void iSpecialKeyboard(unsigned char key)
 
 int main()
 {
-
+    exprInit();
     iSetTransparency(1);
     iInitializeEx(width, height, "Demo!");
     return 0;

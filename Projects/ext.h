@@ -8,8 +8,11 @@
  *
  */
 
+#ifdef PI
+#undef PI
+#endif
+// uses PI as a variable name -_-
 #include "../iGraphics.h"
-#include <chrono>
 
 #ifdef FREEGLUT
 #include "../OpenGL/include/freeglut.h"
@@ -21,9 +24,12 @@
 #ifndef ERR
 #define ERR 1e-8
 #endif
-
+#ifndef min
 #define min(x, y) ((x < y) ? (x) : (y))
+#endif
+#ifndef max
 #define max(x, y) ((x > y) ? (x) : (y))
+#endif
 
 struct point {
     double x, y;

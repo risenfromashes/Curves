@@ -24,16 +24,18 @@
 int main()
 {
     // {
-    //     char expr[EXPR_MAX_LEN] = " y=arccosx ";
-    //     // scanf("%[^n]", &expr);
-    //     // printf("expr")
-    //     printf("%lf\n", exprEval(expr, -1, 1, 1));
-    //     if (exprGetError()) printf("error flag: %d\n", exprGetError());
+    char expr[EXPR_MAX_LEN] = " y=sinhx";
+    // scanf("%[^n]", &expr);
+    // printf("expr")
+    printf("%lf\n", exprEval(expr, -1, 1, 1));
+    if (exprGetError()) printf("error flag: %d\n", exprGetError());
     // struct interval x, y;
-    // x                 = exprCreateInterval(-1.25, 0.0);
-    // struct interval r = exprEvalInterval("pi", -1, x, y);
-    // // struct interval r = exprDiv(exprTan(x), x);
+    // x = exprCreateInterval(1, 2);
+    // y = exprCreateInterval(1, 2);
+    // // struct interval r = exprEvalInterval("pi", -1, x, y);
+    // struct interval r = exprSinh(x);
     // printf("%lf, %lf\n", r.l, r.r);
     // printf("%d, %d\n", r.def, r.cont);
-    printf("%lf", fmod(-3.5, 2));
+    // // printf("%lf", fmod(-3.5, 2));
+    printf("%lf", tan(-PI / 2));
 }

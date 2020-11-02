@@ -36,16 +36,22 @@ static unsigned int error_flags = 0;
 #define EXPR_UNKNOWN_SYMBOL    2
 #define EXPR_UNDEFINED         4
 // function enums
-#define EXPR_SIN  0
-#define EXPR_COS  1
-#define EXPR_TAN  2
-#define EXPR_ASIN 3
-#define EXPR_ACOS 4
-#define EXPR_ATAN 5
-#define EXPR_LOG  6
-#define EXPR_ABS  7
-#define EXPR_SQRT 8
-#define EXPR_CBRT 9
+#define EXPR_SIN   0
+#define EXPR_COS   1
+#define EXPR_TAN   2
+#define EXPR_ASIN  3
+#define EXPR_ACOS  4
+#define EXPR_ATAN  5
+#define EXPR_LOG   6
+#define EXPR_ABS   7
+#define EXPR_SQRT  8
+#define EXPR_CBRT  9
+#define EXPR_SINH  10
+#define EXPR_COSH  11
+#define EXPR_TANH  12
+#define EXPR_ASINH 13
+#define EXPR_ACOSH 14
+#define EXPR_ATANH 15
 
 /*
  * an implementation of the interval arithmetical method discussed here:
@@ -180,17 +186,17 @@ struct interval exprPowBC(double a, struct interval x)
 struct interval exprPow(struct interval x, struct interval y)
 {
     struct interval v;
-    v.def  = (x.r >= 0) && x.def;
+    v.def  = ((x.r > 0) || (x.r == 0 && y.r >= 0)) && x.def && y.def;
     v.cont = x.cont && y.cont;
     if (!v.def) return v;
-    if (x.l < 0) {
+    if (x.l <= 0) {
         x.l = 0;
         if (y.l < 0) v.cont = 0;
     }
     double p, q, r, s;
     p = pow(x.l, y.l), q = pow(x.l, y.r), r = pow(x.r, y.l), s = pow(x.r, y.r);
     v.l = min(p, min(q, min(r, s)));
-    v.l = max(p, max(q, max(r, s)));
+    v.r = max(p, max(q, max(r, s)));
     return v;
 }
 
@@ -239,10 +245,82 @@ struct interval exprTan(struct interval x)
         v.r = r;
     }
     else {
-        v.l    = -INFINITY;
-        v.r    = INFINITY;
+        v.l    = tan(-PI / 2);
+        v.r    = tan(PI / 2);
         v.cont = 0;
+        // skip continuity check to plot tanx/P(x) functions
     }
+    return v;
+}
+struct interval exprSinh(struct interval x)
+{
+    struct interval v;
+    double          l = sinh(x.l), r = sinh(x.r);
+    v.def  = x.def;
+    v.cont = x.cont;
+    v.l    = l;
+    v.r    = r;
+    return v;
+}
+struct interval exprCosh(struct interval x)
+{
+    struct interval v;
+    double          l = cosh(x.l), r = cosh(x.r);
+    v.def  = x.def;
+    v.cont = x.cont;
+    if (0 >= x.l && x.r >= 0)
+        v.l = 1;
+    else
+        v.l = min(l, r);
+    v.r = max(l, r);
+    return v;
+}
+struct interval exprTanh(struct interval x)
+{
+    struct interval v;
+    double          l = tanh(x.l), r = tanh(x.r);
+    v.def  = x.def;
+    v.cont = x.cont;
+    v.l    = l;
+    v.r    = r;
+    return v;
+}
+struct interval exprAsinh(struct interval x)
+{
+    struct interval v;
+    double          l = asinh(x.l), r = asinh(x.r);
+    v.def  = x.def;
+    v.cont = x.cont;
+    v.l    = l;
+    v.r    = r;
+    return v;
+}
+struct interval exprAcosh(struct interval x)
+{
+    struct interval v;
+    v.def  = (x.r >= 1) && x.def;
+    v.cont = x.cont;
+    if (!v.def) return v;
+    if (x.l < 1) x.l = 1;
+    double l = acosh(x.l), r = acosh(x.r);
+    v.l = l;
+    v.r = r;
+    return v;
+}
+struct interval exprAtanh(struct interval x)
+{
+    struct interval v;
+    v.def  = (-1 <= x.r && x.l <= 1) && x.def;
+    v.cont = x.cont;
+    if (!v.def) return v;
+    if (x.l < -1)
+        v.l = atanh(-1);
+    else
+        v.l = atanh(x.l);
+    if (x.r > 1)
+        v.r = atanh(1);
+    else
+        v.r = atanh(x.r);
     return v;
 }
 struct interval exprAsin(struct interval x)
@@ -478,7 +556,19 @@ double exprEval(const char* expr, int l, double x, double y)
             }
             else {
                 int f;
-                if (!strncmp(expr + i, "sin", 3))
+                if (!strncmp(expr + i, "sinh", 4))
+                    i += 4, f = EXPR_SINH;
+                else if (!strncmp(expr + i, "cosh", 4))
+                    i += 4, f = EXPR_COSH;
+                else if (!strncmp(expr + i, "tanh", 4))
+                    i += 4, f = EXPR_TANH;
+                else if (!strncmp(expr + i, "arcsinh", 7))
+                    i += 7, f = EXPR_ASINH;
+                else if (!strncmp(expr + i, "arccosh", 7))
+                    i += 7, f = EXPR_ACOSH;
+                else if (!strncmp(expr + i, "arctanh", 7))
+                    i += 7, f = EXPR_ATANH;
+                else if (!strncmp(expr + i, "sin", 3))
                     i += 3, f = EXPR_SIN;
                 else if (!strncmp(expr + i, "cos", 3))
                     i += 3, f = EXPR_COS;
@@ -544,6 +634,24 @@ double exprEval(const char* expr, int l, double x, double y)
                         c = sqrt(t);
                         break;
                     case EXPR_CBRT: c = cbrt(t); break;
+                    case EXPR_SINH: c = sinh(t); break;
+                    case EXPR_COSH: c = cosh(t); break;
+                    case EXPR_TANH: c = tanh(t); break;
+                    case EXPR_ASINH: c = asinh(t); break;
+                    case EXPR_ACOSH:
+                        if (t < 1.0) {
+                            error_flags |= EXPR_UNDEFINED;
+                            return 0;
+                        }
+                        c = acosh(t);
+                        break;
+                    case EXPR_ATANH:
+                        if (t > 1.0 || t < -1.0) {
+                            error_flags |= EXPR_UNDEFINED;
+                            return 0;
+                        }
+                        c = atanh(t);
+                        break;
                 }
             }
         }
@@ -680,7 +788,19 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
             }
             else {
                 int f;
-                if (!strncmp(expr + i, "sin", 3))
+                if (!strncmp(expr + i, "sinh", 4))
+                    i += 4, f = EXPR_SINH;
+                else if (!strncmp(expr + i, "cosh", 4))
+                    i += 4, f = EXPR_COSH;
+                else if (!strncmp(expr + i, "tanh", 4))
+                    i += 4, f = EXPR_TANH;
+                else if (!strncmp(expr + i, "arcsinh", 7))
+                    i += 7, f = EXPR_ASINH;
+                else if (!strncmp(expr + i, "arccosh", 7))
+                    i += 7, f = EXPR_ACOSH;
+                else if (!strncmp(expr + i, "arctanh", 7))
+                    i += 7, f = EXPR_ATANH;
+                else if (!strncmp(expr + i, "sin", 3))
                     i += 3, f = EXPR_SIN;
                 else if (!strncmp(expr + i, "cos", 3))
                     i += 3, f = EXPR_COS;
@@ -725,6 +845,12 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     case EXPR_ABS: c = exprAbs(t); break;
                     case EXPR_SQRT: c = exprSqrt(t); break;
                     case EXPR_CBRT: c = exprCbrt(t); break;
+                    case EXPR_SINH: c = exprSinh(t); break;
+                    case EXPR_COSH: c = exprCosh(t); break;
+                    case EXPR_TANH: c = exprTanh(t); break;
+                    case EXPR_ASINH: c = exprAsinh(t); break;
+                    case EXPR_ACOSH: c = exprAcosh(t); break;
+                    case EXPR_ATANH: c = exprAtanh(t); break;
                 }
             }
         }
@@ -894,7 +1020,7 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
 #define F(x, y) exprEval(expr, -2, x, y)
     const double err = 1e-7;
     double       x, y, x0, y0, F0, du, ds, dx, dy, Fx, Fy, D, d;
-    du = 1e-6;
+    du = 1e-3;
     ds = min(rX - lX, tY - bY) / EXPR_GRID_SIZE / 2.0;
     for (int h = 0; h < EXPR_GRID_SIZE; h++) {
         for (int v = 0; v < EXPR_GRID_SIZE; v++) {
@@ -927,13 +1053,8 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                             x0 = x, y0 = y; // last point
                             D  = sqrt(Fx * Fx + Fy * Fy);
                             dx = ds * Fy / D, dy = -ds * Fx / D;
-                            s = 1 - 2 * rev;
-                            if (fabs(Fx) > 1e2)
-                                dx = s * ds, dy = 0;
-                            else if (fabs(Fy) > 1e2)
-                                dx = 0, dy = s * ds;
-                            else
-                                dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
+                            s  = 1 - 2 * rev;
+                            dx = s * ds * Fy / D, dy = -s * ds * Fx / D;
                             x += dx, y += dy;
                         }
                         else {
@@ -1054,6 +1175,15 @@ int exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
         }
     }
     if ((double)n_divs / (EXPR_GRID_SIZE * EXPR_GRID_SIZE) > 0.05) return 0;
+    //     for (int h = 0; h < EXPR_GRID_SIZE; h++) {
+    //         for (int v = 0; v < EXPR_GRID_SIZE; v++)
+    //             if (G[h][v]) {
+    // #ifdef FREEGLUT
+    //                 iSetColor(0, 0, 255);
+    //                 iFilledCircle(exprGetScreenX(getGridMidX(h)), exprGetScreenY(getGridMidY(v)), 2, 25);
+    // #endif
+    //             }
+    //     }
     exprTraceCurves(expr, drawFunc);
     return 1;
 }
