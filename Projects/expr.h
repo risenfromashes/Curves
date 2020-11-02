@@ -440,7 +440,7 @@ double exprEval(const char* expr, int l, double x, double y)
                 c = y;
             else if (expr[i] == 'e')
                 c = exp(1);
-            else if (!strnicmp(expr + i, "pi", 2))
+            else if (!strncmp(expr + i, "pi", 2))
                 c = PI, i++;
             else if (isdigit(expr[i]) || expr[i] == '.') {
                 char* end;
@@ -641,7 +641,7 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                 c = y;
             else if (expr[i] == 'e')
                 c = exprToInterval(exp(1));
-            else if (!strnicmp(expr + i, "pi", 2))
+            else if (!strncmp(expr + i, "pi", 2))
                 i++, c = exprToInterval(PI);
             else if (isdigit(expr[i]) || expr[i] == '.') {
                 char* end;

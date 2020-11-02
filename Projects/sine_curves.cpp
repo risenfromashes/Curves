@@ -215,6 +215,7 @@ void iMouse(int button, int state, int x, int y)
                 clickedState = 1;
                 integerInput = 0;
                 if (y <= 22) {
+                    deselectAll();
                     handleBottomOverlay(0);
                     return;
                 }
@@ -565,7 +566,7 @@ void equation(int index, char* str, int size)
     double      p = phase(index);
     const char* f = markedCosine[index] ? "cos" : "sin";
     if (fabs(p) < 0.001)
-        snprintf(str, size, "y = %0.3lf %s(%0.3lfx)", a, f, w, fabs(p));
+        snprintf(str, size, "y = %0.3lf %s(%0.3lfx)", a, f, w);
     else if (p > 0.0)
         snprintf(str, size, "y = %0.3lf %s(%0.3lfx + %0.3lf)", a, f, w, fabs(p));
     else
@@ -716,10 +717,10 @@ int selectCurve(int x, int y)
             Y = C;
         if (fabs(Y) < fabs(minY)) {
             if ((0 <= y && y <= Y + 2) || (0 >= y && y >= Y - 2)) {
-                if ((i < n_sines && drawCurves) || (i == n_sines && drawSummation)) {
-                    sine_index = i;
-                    minY       = Y;
-                }
+                if (i < n_sines && !drawCurves) continue;
+                if (i == n_sines && !drawSummation) continue;
+                sine_index = i;
+                minY       = Y;
             }
         }
     }

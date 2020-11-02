@@ -39,11 +39,11 @@ void iMouse(int button, int state, int mx, int my)
 {
     if (state == GLUT_DOWN) {
         if (button == 3)
-            scale += 0.01;
+            exprScale += 0.01;
         else if (button == 4)
-            scale -= 0.01;
+            exprScale -= 0.01;
     }
-    exprScale(scale);
+    exprScaleBy(exprScale);
 }
 void iPassiveMouseMove(int, int) {}
 void iResize(int w, int h)
@@ -59,6 +59,7 @@ void iKeyboard(unsigned char key)
         switch (key) {
             case 22: // Ctrl + V
             {
+#ifdef WIN32
                 HWND hnd = GetActiveWindow();
                 if (OpenClipboard(hnd)) {
                     if (IsClipboardFormatAvailable(CF_TEXT)) {
@@ -68,6 +69,7 @@ void iKeyboard(unsigned char key)
                     }
                     CloseClipboard();
                 }
+#endif
             } break;
             case ' ':
             case '=':
