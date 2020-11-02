@@ -185,8 +185,11 @@ void iMouseMove(int x, int y)
                 }
                 else {
                     double x0 = X0;
-                    if (fabs(x0 - originX) < 20) x0 += 20;
-                    L[i] = L0[i] * (x - originX) / (x0 - originX);
+                    if (x0 - originX < 20)
+                        x0 += 20;
+                    else if (x0 - originX < -20)
+                        x0 -= 20;
+                    if (fabs(x - originX) >= 5.0) L[i] = L0[i] * (x - originX) / (x0 - originX);
                 }
                 if (fabs(L0[i]) >= 50.0) {
                     if (L[i] > 0) // min wavelength threshold
