@@ -45,7 +45,7 @@ char numStr[8] = "";
 int  numPos    = 0;
 // for taking mathematical expressions
 char   expr[256] = "";
-char   exprPos   = 0;
+int    exprPos   = 0;
 int    graphMode = 0, integerInput = 0;
 double originX = width / 2.0, originY = height / 2.0;
 double panX = 0, panY = 0.0;
@@ -138,6 +138,11 @@ void iDraw()
     iClear();
     if (showGrid || graphMode || panningActive || t < t0 + 0.25) drawGrid();
     drawAxis();
+    if (graphMode) {
+        for (int i = 0; i < MAX_WIDTH; i++)
+            fY[i] = -INFINITY;
+        if ((exprPlot(expr, drawFunction) && exprUpdated()) || resized) fourier();
+    }
     locateTracers();
     drawSines();
     drawTracers();
@@ -146,13 +151,8 @@ void iDraw()
         case SIN_OVERLAY: drawSinOverLay(); break;
         case GEN_OVERLAY: drawGenOverLay(); break;
     }
-    if (graphMode) {
-        drawTextBox();
-        for (int i = 0; i < MAX_WIDTH; i++)
-            fY[i] = -INFINITY;
-        if (exprPlot(expr, drawFunction) && exprUpdated() || resized) fourier();
-    }
     if (drawing) drawHandDrawnCurve();
+    if (graphMode) drawTextBox();
     drawBottomOverlay();
     if (resized) resized = 0;
     if (showHelp) drawHelpScreen();
@@ -717,7 +717,7 @@ void drawSines()
 int selectCurve(int x, int y)
 {
     y -= (height / 2 + panY);
-    double Y, C = 0, minY = height;
+    double Y, C = 0, minY = INFINITY;
     int    sine_index = -1;
     for (int i = 0; i <= n_sines; i++) {
         if (i < n_sines) {
@@ -726,12 +726,12 @@ int selectCurve(int x, int y)
         }
         else
             Y = C;
-        if (fabs(Y) < fabs(minY)) {
+        if (fabs(Y) < minY) {
             if ((0 <= y && y <= Y + 2) || (0 >= y && y >= Y - 2)) {
                 if (i < n_sines && !drawCurves) continue;
                 if (i == n_sines && !drawSummation) continue;
                 sine_index = i;
-                minY       = Y;
+                minY       = fabs(Y);
             }
         }
     }
@@ -798,8 +798,8 @@ void removeSine()
 
 void drawTextBox()
 {
-    iSetColorEx(45, 52, 54, 0.8);
     double w = width * 0.25;
+    iSetColorEx(45, 52, 54, 0.8);
     iFilledRectangle(width * 0.375, 50, width * 0.25, 40);
     iSetColor(255, 255, 255);
     iLineEx(width * 0.375, 50, width * 0.25, 0);
@@ -808,6 +808,7 @@ void drawTextBox()
         iText(width * 0.375 + (w - 190.0) / 2.0, 65, "Enter your equation", GLUT_BITMAP_TIMES_ROMAN_24);
     }
     else {
+        iSetColor(255, 255, 255);
         double l = strlen(expr) * 10.0;
         iText(width * 0.375 + (w - l) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
     }
@@ -872,7 +873,7 @@ void drawFunction(double X[], double Y[], int n)
         int k = (int)max(round(X[i]), 0.0);
         fY[k] = max(Y[i], fY[k]);
     }
-    iSetColorEx(255, 255, 255, 0.15);
+    iSetColor(45, 52, 54);
     iPath(X, Y, n, 3);
 }
 
@@ -887,7 +888,7 @@ void zoom(int dir, int x, int y)
     double scale0 = scale;
     if (x < 0) x = originX;
     if (y < 0) y = originY;
-    scale += dir * scale * 0.02;
+    scale += dir * scale * 0.05;
     panX    = x - scale / scale0 * (x - originX) - width / 2.0;
     panY    = y - scale / scale0 * (y - originY) - height / 2.0;
     originX = width / 2.0 + panX;
@@ -1447,17 +1448,18 @@ void locateTracers()
 }
 void drawTracers()
 {
+    double r = 5;
     for (int i = 0; i <= n_sines; i++) {
         if (tracerState[i] & 1) {
             if (i < n_sines) {
                 iSetColor(C[i][0], C[i][1], C[i][2]);
-                iFilledCircle(tracerX[i], tracerY[i], 4);
+                iFilledCircle(tracerX[i], tracerY[i], r);
             }
             else {
                 iSetColorEx(255, 255, 255, 0.85);
-                iFilledCircle(tracerX[n_sines], tracerY[n_sines], 5);
+                iFilledCircle(tracerX[n_sines], tracerY[n_sines], r + 1);
                 iSetColorEx(255, 255, 255, 1);
-                iCircleEx(tracerX[n_sines], tracerY[n_sines], 8, 2, 1, 50, 5, 1);
+                iCircleEx(tracerX[n_sines], tracerY[n_sines], r + 3, 2, 1, 50, 5, 1);
             }
         }
     }

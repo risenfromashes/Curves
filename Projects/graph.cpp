@@ -2,7 +2,7 @@
 #include "expr.h"
 
 char expr[256] = "";
-char exprPos   = 0;
+int  exprPos   = 0;
 
 int width = 1280, height = 720;
 

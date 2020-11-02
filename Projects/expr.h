@@ -248,7 +248,6 @@ struct interval exprTan(struct interval x)
         v.l    = tan(-PI / 2);
         v.r    = tan(PI / 2);
         v.cont = 0;
-        // skip continuity check to plot tanx/P(x) functions
     }
     return v;
 }
@@ -1018,16 +1017,16 @@ static void markDone(int h, int v, int f)
 static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[], int))
 {
 #define F(x, y) exprEval(expr, -2, x, y)
-    const double err = 1e-7;
-    double       x, y, x0, y0, F0, du, ds, dx, dy, Fx, Fy, D, d;
-    du = 1e-3;
+    double x, y, x0, y0, F0, du, ds, dx, dy, Fx, Fy, D;
+    du = 1e-7;
     ds = min(rX - lX, tY - bY) / EXPR_GRID_SIZE / 2.0;
     for (int h = 0; h < EXPR_GRID_SIZE; h++) {
         for (int v = 0; v < EXPR_GRID_SIZE; v++) {
             if (G[h][v] > 0) {
                 double initX, initY;
-                int    i, j, H, V, rev = 0, n_overlap = 0;
+                int    i, j, H, V, rev = 0;
                 x = getGridMidX(h), y = getGridMidY(v);
+                F0 = F(x, y);
                 // iterate in the inital direction and after following the trail a while
                 // go back to the initial point and go the other way
                 // the first one is not a solution
@@ -1080,10 +1079,6 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                     }
                     int isSolution = !undef && (fabs(F0) < 1e-5);
                     int inBoundary = lX <= x && x <= rX && bY <= y && y <= tY;
-                    if (i == 0) {
-                        // iSetColorEx(0, 255, 0, 0.5);
-                        // iCircle(exprGetScreenX(initX), exprGetScreenY(initY), 10);
-                    }
                     H = getGridH(x), V = getGridV(y);
                     if (inBoundary) {
                         if (isSolution) {
@@ -1104,8 +1099,7 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                             r = i;
                             drawFunc(exprCurveX, exprCurveY, r);
                             if (i < EXPR_MAX_POINTS - 1) {
-                                rev       = 1;
-                                n_overlap = 0;
+                                rev = 1;
                                 x = initX, y = initY;
                                 F0 = F(x, y);
                             }
@@ -1175,15 +1169,6 @@ int exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
         }
     }
     if ((double)n_divs / (EXPR_GRID_SIZE * EXPR_GRID_SIZE) > 0.05) return 0;
-    //     for (int h = 0; h < EXPR_GRID_SIZE; h++) {
-    //         for (int v = 0; v < EXPR_GRID_SIZE; v++)
-    //             if (G[h][v]) {
-    // #ifdef FREEGLUT
-    //                 iSetColor(0, 0, 255);
-    //                 iFilledCircle(exprGetScreenX(getGridMidX(h)), exprGetScreenY(getGridMidY(v)), 2, 25);
-    // #endif
-    //             }
-    //     }
     exprTraceCurves(expr, drawFunc);
     return 1;
 }
