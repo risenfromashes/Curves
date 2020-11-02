@@ -1,3 +1,13 @@
+/*
+ *
+ * Extenstion to the iGraphics library, adding functionalities including stroked paths,
+ * transparent colors, resize responsiveness.
+ *
+ * Ashrafur Rahman
+ * October, 2020
+ *
+ */
+
 #include "../iGraphics.h"
 #include <chrono>
 
@@ -54,7 +64,7 @@ void iText(double x, double y, const char* str, void* font = GLUT_BITMAP_8_BY_13
         glutBitmapCharacter(font, str[i]); //,GLUT_BITMAP_8_BY_13, GLUT_BITMAP_TIMES_ROMAN_24
     }
 }
-
+// draws stroked paths
 void iPath(double X[],
            double Y[],
            int    n,
@@ -65,6 +75,14 @@ void iPath(double X[],
            double gap     = 5,
            int    aligned = 0)
 {
+    /*
+     *  Solves equations of consecutive parallel straight lines, distanced d/2 from the
+     *  original line to determine points for the stroked path.
+     *
+     *  For the first end points in non-closed, finds perpendicularly d/2 distanced points
+     *
+     */
+
     //  p1 ------------------- p2
     //     -------------------
     //  p0 ------------------- p3
@@ -303,6 +321,8 @@ void resizeFF(int width, int height)
     glutPostRedisplay();
 }
 
+// enables MSAA, glBlending for transparency
+// also adds resize and passive mouse movement callbacks
 void iInitializeEx(int width = 500, int height = 500, const char* title = "iGraphics")
 {
 
@@ -345,6 +365,7 @@ void iInitializeEx(int width = 500, int height = 500, const char* title = "iGrap
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
+
     glEnable(GL_POINT_SMOOTH);
     glHint(GL_POINT_SMOOTH_HINT, GL_LINEAR);
 

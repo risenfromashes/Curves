@@ -1,3 +1,13 @@
+/*
+ *
+ * A single header library for plotting 2D graphs of implicit equations of x,y.
+ * Developed for the "Curves" project's fourier approximation feature.
+ *
+ * Ashrafur Rahman
+ * October, 2020
+ *
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -37,8 +47,11 @@ static unsigned int error_flags = 0;
 #define EXPR_SQRT 8
 #define EXPR_CBRT 9
 
-// Using methods described here: http://www.dgp.toronto.edu/~mooncake/papers/SIGGRAPH2001_Tupper.pdf
-// and multivariate Newton's method
+/*
+ * an implementation of the interval arithmetical method discussed here:
+ * http://www.dgp.toronto.edu/~mooncake/papers/SIGGRAPH2001_Tupper.pdf *
+ *
+ */
 
 struct interval {
     double l, r;
@@ -325,6 +338,8 @@ struct interval exprCbrt(struct interval x)
 int exprGetError() { return error_flags; }
 
 static int len, bracketEnds[EXPR_MAX_LEN + 1];
+
+// remembers matching brackets in the expression
 static int exprMatchBrackets(const char* expr)
 {
     int i, r;
@@ -358,6 +373,7 @@ static int exprMatchBrackets(const char* expr)
     return 1;
 }
 
+// Evaluates string mathematical expressions recursively
 // Evaluates expression
 // l = -1 indicates the string is new and its the first call
 // l = -2 indicates its the same as the one in the last call
@@ -548,6 +564,7 @@ double exprEval(const char* expr, int l, double x, double y)
     return s;
 }
 
+// evaluates expression and calculates lower and upper bound in given intervals
 // l = -1 indicates the string is new and its the first call
 // l = -2 indicates its the same as the one in the last call
 // l = -3 indicates until_op
@@ -742,6 +759,7 @@ static int exprIsOp(char c)
     return 0;
 }
 
+// an overly simple validator for expression
 int exprIsValid(const char* expr)
 {
     int i, len, lastOp = 0, eq = 0;
@@ -868,6 +886,8 @@ static void markDone(int h, int v, int f)
     }
 }
 
+// Uses Multivariate Newton's Method and Gradient approximation to trace solutions
+// in previously marked regions
 // ref: http://web.mit.edu/18.06/www/Spring17/Multidimensional-Newton.pdf
 static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[], int))
 {
@@ -882,8 +902,6 @@ static void exprTraceCurves(const char* expr, void (*drawFunc)(double[], double[
                 double initX, initY;
                 int    i, j, H, V, rev = 0, n_overlap = 0;
                 x = getGridMidX(h), y = getGridMidY(v);
-                // iSetColorEx(0, 0, 255, 0.5);
-                // iCircle(exprGetScreenX(x), exprGetScreenY(y), 10);
                 // iterate in the inital direction and after following the trail a while
                 // go back to the initial point and go the other way
                 // the first one is not a solution
@@ -991,6 +1009,8 @@ int        exprUpdated()
     if (ret) exprChangedExt = 0;
     return ret;
 }
+// Plots 2D solutions of implicit equations
+// uses interval arithmatics to approximate solution areas
 int exprPlot(const char* expr, void (*drawFunc)(double[], double[], int))
 {
     if (!exprIsValid(expr)) return 0;

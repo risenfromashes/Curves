@@ -1,3 +1,15 @@
+/*
+ *
+ * "Curves"
+ * Submission for the mid-term project for CSE 102, BUET
+ *
+ * A visualizer and a feature-rich editor for sinusoids.
+ *
+ * Ashrafur Rahman
+ * October, 2020
+ *
+ */
+
 #include "ext.h"
 #include "expr.h"
 
@@ -28,9 +40,10 @@ int drawMode = 0, drawing = 0;
 double fY[MAX_WIDTH + 10];
 double drawingX[MAX_WIDTH + 10], drawingY[MAX_WIDTH + 10];
 int    drawingIndex;
+// for integer input
+char numStr[8] = "";
+int  numPos    = 0;
 // for taking mathematical expressions
-char   numStr[8] = "";
-int    numPos    = 0;
 char   expr[256] = "";
 char   exprPos   = 0;
 int    graphMode = 0, integerInput = 0;
@@ -186,10 +199,10 @@ void iMouseMove(int x, int y)
                 }
                 else {
                     double x0 = X0;
-                    if (x0 - originX < 20)
-                        x0 += 20;
-                    else if (x0 - originX < -20)
+                    if (x0 - originX < -20)
                         x0 -= 20;
+                    else if (x0 - originX < 20)
+                        x0 += 20;
                     if (fabs(x - originX) >= 5.0) L[i] = L0[i] * (x - originX) / (x0 - originX);
                 }
                 if (fabs(L0[i]) >= 50.0) {
@@ -1689,7 +1702,7 @@ const char shortcuts[26][2][128] = {
     {"Q End", "Exit"},
 };
 
-const char aboutString[][128] = {"A simple application written in C based on the OpenGL-based iGraphics library,",
+const char aboutString[][128] = {"A simple application written in C based the OpenGL-based iGraphics library,",
                                  "to explore and play with sines and cosines.",
                                  "Ashrafur Rahman | October 2020"};
 
@@ -1704,13 +1717,13 @@ void drawHelpScreen()
     iText(width - 485, height - 30, "Help", GLUT_BITMAP_HELVETICA_18);
     iLine(width - 490, height - 40, width - 15, height - 40);
     for (int i = 0; i < 15; i++) {
-        iText(width - 485, height - i * 20 - 60 - 5 * (i == 13), helpStrings[i], GLUT_BITMAP_HELVETICA_12);
+        iText(width - 485, height - i * 20 - 60 - 5 * (i == 14), helpStrings[i], GLUT_BITMAP_HELVETICA_12);
     }
-    iText(width - 485, height - 360, "Shortcuts", GLUT_BITMAP_HELVETICA_18);
-    iLine(width - 490, height - 370, width - 15, height - 370);
+    iText(width - 485, height - 380, "Shortcuts", GLUT_BITMAP_HELVETICA_18);
+    iLine(width - 490, height - 390, width - 15, height - 390);
     for (int i = 0; i < 26; i++) {
-        iText(width - 485 + 250 * (i >= 13), height - (i % 13) * 15 - 390, shortcuts[i][0], GLUT_BITMAP_HELVETICA_12);
-        iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 390, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
+        iText(width - 485 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][0], GLUT_BITMAP_HELVETICA_12);
+        iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
     }
     iText(width - 485, 65, "About", GLUT_BITMAP_HELVETICA_12);
     iLine(width - 490, 60, width - 115, 60);
