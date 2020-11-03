@@ -421,16 +421,10 @@ void iKeyboard(unsigned char key)
                 }
                 break;
             case 'S': // alt + S
-                if (drawSummation == 2)
-                    drawSummation = 0;
-                else
-                    drawSummation = 2;
+                drawSummation = !drawSummation;
                 break;
             case 'C':
-                if (drawSummation == 2)
-                    drawSummation = 1;
-                else
-                    drawCurves = !drawCurves;
+                drawCurves = !drawCurves;
                 if (!drawCurves) deselectAll();
                 break;
         }
