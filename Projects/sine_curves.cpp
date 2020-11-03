@@ -33,7 +33,8 @@ int       drawCurves   = 1;
 int       resized      = 0;
 int       isFullScreen = 0;
 
-int showGrid = 0;
+int showGrid          = 0;
+int showBottomOverlay = 1;
 
 int drawMode = 0, drawing = 0;
 // coordinates from the user or from the grapher for fourier estimation
@@ -58,8 +59,11 @@ int    tracerState[MAX_SINES + 5] = {0}; // first bit set if tracer showed, seco
 double tracerPt[MAX_SINES + 5] = {0}, tracerdt[MAX_SINES + 5] = {0};
 double tracerSyncPt, tracerSyncdt                             = 0.0;
 int    tracersSynced = 0, tracersUnidirectional = 1;
-double tracerSpeed      = 150.0; // pixel/second
-int    tracerButtonMode = 0;
+double tracerSpeed = 150.0; // pixel/second
+// 0 for all tracers hidden
+// 1 for all tracers showed and not synced
+// 2 for all tracers showed and synced
+int tracerButtonMode = 0;
 
 double markedCosine[MAX_SINES + 5] = {0};
 
@@ -228,9 +232,15 @@ void iMouse(int button, int state, int x, int y)
                 clickedState = 1;
                 integerInput = 0;
                 if (y <= 22) {
-                    deselectAll();
-                    handleBottomOverlay(0);
-                    return;
+                    if (x >= width - 25) {
+                        showBottomOverlay = !showBottomOverlay;
+                        return;
+                    }
+                    else if (showBottomOverlay) {
+                        deselectAll();
+                        handleBottomOverlay(0);
+                        return;
+                    }
                 }
                 if (showHelp) {
                     if (x >= width - 25 && y >= height - 25) {
@@ -794,6 +804,7 @@ void removeSine()
             n_sines--;
         n_selected = 0;
     }
+    overlayState = 0;
 }
 
 void drawTextBox()
@@ -820,7 +831,7 @@ int takeIntInput(unsigned char key)
         if (numPos >= 0) numStr[--numPos] = '\0';
     }
     else {
-        if (!isdigit(key) || numPos == 3) return 0;
+        if (!isdigit(key) || numPos == 3) return 1;
         if (numPos == 1 && numStr[0] == '0')
             numStr[0] = key;
         else
@@ -1300,7 +1311,7 @@ void changeTracerSpeed(int dir)
 {
     double t  = iGetTime();
     double v0 = tracerSpeed, v;
-    v         = tracerSpeed += dir * 0.5;
+    v         = tracerSpeed += dir * 2.5;
     if (fabs(v) < 0.01) tracerSpeed = v = -v0;
     if (tracersSynced)
         tracerSyncdt = t - v0 / v * (t - tracerSyncdt);
@@ -1413,7 +1424,7 @@ void handleGenOverlay(int dragging)
 void locateTracers()
 {
     double t = iGetTime();
-    double x = t * tracerSpeed - tracerSyncdt;
+    double x = (t - tracerSyncdt) * tracerSpeed;
     for (int i = 0; i <= n_sines; i++) {
         if ((tracerState[i] & 1) && !(tracerState[i] & 2)) { // showed and resumed
             if (tracersSynced) {
@@ -1532,72 +1543,96 @@ void drawMiniSyncTracers(int w, int h, int dx, int dy)
         iFilledCircle(dx + w / 2.0, dy + i * h / 2.0, 2.5, 25);
 }
 
-int eqnLen, cntrLen;
+void drawArrow(int up, int w, int h, int dx, int dy)
+{
+    if (dx < 0) dx += width;
+    double X[] = {dx * 1.0, dx + w / 2.0, dx + w * 1.0}, Y[] = {1.0 * dy, 1.0 * dy, 1.0 * dy};
+    if (up)
+        Y[1] += h;
+    else
+        Y[0] += h, Y[2] += h;
+    iSetColor(255, 255, 255);
+    iPath(X, Y, 3, 2);
+}
 
-// 0 for all tracers hidden
-// 1 for all tracers showed and not synced
-// 2 for all tracers showed and synced
+void drawShowHideMenu()
+{
+    if (mY <= 22 && mX >= width - 25) {
+        iSetColorEx(255, 255, 255, 0.2);
+        iFilledRectangle(width - 25, 0, 25, 22);
+    }
+    drawArrow(!showBottomOverlay, 10, 5, -17, 8);
+}
+int eqnLen, cntrLen;
 
 void drawBottomOverlay()
 {
-    char text[64];
-    int  w_;
-    iSetColorEx(45, 52, 54, 0.95);
-    iFilledRectangle(0, 0, width, 22);
-    snprintf(text, 64, "%3d", n_sines);
-    drawBottomScaleMenu(text, " sinusoids", 30, 65, -165, 1 + integerInput, 0, 1);
-    snprintf(text, 64, "Tracer Speed %0.1lf", tracerSpeed);
-    drawBottomScaleMenu(text, tracersUnidirectional ? ">>" : "<>", 125, 25, -385, 0, 1, 1);
-    if (tracerButtonMode) {
-        iSetColorEx(255, 255, 255, .2);
-        iFilledRectangle(width - 415, 0, 25, 22);
-    }
-    if (tracersSynced && tracerButtonMode)
-        drawMiniSyncTracers(14, 10, -410, 6);
-    else
-        drawMiniTracers(14, 10, -410, 6);
-    drawBottomMenu("", 25, -415, 1, 1);
-    if (showGrid) {
-        iSetColorEx(255, 255, 255, .2);
-        iFilledRectangle(width - 455, 0, 25, 22);
-    }
-    drawMiniGrid(16, 16, -450, 3);
-    drawBottomMenu("", 25, -455, 1, 1);
-    snprintf(text, 64, " Scale: %0.3lf", scale);
-    drawBottomMenu(text, 85, -545, 1, 0);
-    snprintf(
-        text, 64, " Center: (%0.2lf, %0.2lf)", exprLength(width / 2.0 - originX), exprLength(height / 2.0 - originY));
-    w_ = cntrLen = strlen(text) * 6 + 2;
-    drawBottomMenu(text, w_, -(545 + w_), 1, 0);
-    if (n_selected == 1) {
-        int i = 0;
-        while (!selected[i])
-            i++;
-        equation(i, text, 64);
-        w_ = eqnLen = strlen(text) * 6 + 2;
-        drawBottomMenu(text, w_, 50, 1, 0);
-    }
-    else if (iGetTime() < 20.0)
-        drawBottomMenu("Press F1 for Help", 136, 50, 0, 0);
+    if (showBottomOverlay) {
+        char text[64];
+        int  w_;
+        iSetColorEx(45, 52, 54, 0.95);
+        iFilledRectangle(0, 0, width, 22);
+        drawShowHideMenu();
+        snprintf(text, 64, "%3d", n_sines);
+        drawBottomScaleMenu(text, " sinusoids", 30, 65, -175, 1 + integerInput, 0, 1);
+        snprintf(text, 64, "Tracer Speed %0.1lf", tracerSpeed);
+        drawBottomScaleMenu(text, tracersUnidirectional ? ">>" : "<>", 125, 25, -390, 0, 1, 1);
+        if (tracerButtonMode) {
+            iSetColorEx(255, 255, 255, .2);
+            iFilledRectangle(width - 420, 0, 25, 22);
+        }
+        if (tracersSynced && tracerButtonMode)
+            drawMiniSyncTracers(14, 10, -415, 6);
+        else
+            drawMiniTracers(14, 10, -415, 6);
+        drawBottomMenu("", 25, -420, 1, 1);
+        if (showGrid) {
+            iSetColorEx(255, 255, 255, .2);
+            iFilledRectangle(width - 460, 0, 25, 22);
+        }
+        drawMiniGrid(16, 16, -455, 3);
+        drawBottomMenu("", 25, -460, 1, 1);
+        snprintf(text, 64, " Scale: %0.3lf", scale);
+        drawBottomMenu(text, 85, -545, 1, 0);
+        snprintf(text,
+                 64,
+                 " Center: (%0.2lf, %0.2lf)",
+                 exprLength(width / 2.0 - originX),
+                 exprLength(height / 2.0 - originY));
+        w_ = cntrLen = strlen(text) * 6 + 2;
+        drawBottomMenu(text, w_, -(545 + w_), 1, 0);
+        if (n_selected == 1) {
+            int i = 0;
+            while (!selected[i])
+                i++;
+            equation(i, text, 64);
+            w_ = eqnLen = strlen(text) * 6 + 2;
+            drawBottomMenu(text, w_, 50, 1, 0);
+        }
+        else if (iGetTime() < 20.0)
+            drawBottomMenu("Press F1 for Help", 136, 50, 0, 0);
 
-    iSetColorEx(0, 0, 0, 0.2);
-    iFilledRectangle(0, 0, 40, 22);
-    iSetColor(255, 255, 255);
-    if (drawMode)
-        iText(5, 8, "_--", GLUT_BITMAP_HELVETICA_18);
-    else if (graphMode)
-        iText(5, 8, "f(x,y)", GLUT_BITMAP_HELVETICA_12);
+        iSetColorEx(0, 0, 0, 0.2);
+        iFilledRectangle(0, 0, 40, 22);
+        iSetColor(255, 255, 255);
+        if (drawMode)
+            iText(5, 8, "_--", GLUT_BITMAP_HELVETICA_18);
+        else if (graphMode)
+            iText(5, 8, "f(x,y)", GLUT_BITMAP_HELVETICA_12);
+        else
+            iText(5, 5, " ~ ", GLUT_BITMAP_TIMES_ROMAN_24);
+    }
     else
-        iText(5, 5, " ~ ", GLUT_BITMAP_TIMES_ROMAN_24);
+        drawShowHideMenu();
 }
 void handleBottomOverlay(int dragging)
 {
     int x = X0, xn = width - X0;
-    if (360 <= xn && xn <= 385) {
+    if (365 <= xn && xn <= 390) {
         // - tracer speed
         changeTracerSpeed(-1);
     }
-    else if (185 <= xn && xn <= 210) {
+    else if (190 <= xn && xn <= 215) {
         // + tracer speed
         changeTracerSpeed(1);
     }
@@ -1617,8 +1652,8 @@ void handleBottomOverlay(int dragging)
             // scale
             backToUnitScale();
         }
-        else if (390 <= xn && xn <= 415) {
-            // show/hide grid
+        else if (395 <= xn && xn <= 420) {
+            // tracer button
             tracerButtonMode = (tracerButtonMode + 1) % 3;
             switch (tracerButtonMode) {
                 case 0: hideAllTracers(); break;
@@ -1629,24 +1664,24 @@ void handleBottomOverlay(int dragging)
                 case 2: tracersSynced = 1; break;
             }
         }
-        else if (430 <= xn && xn <= 455) {
+        else if (435 <= xn && xn <= 460) {
             // show/hide grid
             showGrid = !showGrid;
         }
-        else if (210 <= xn && xn <= 235) {
-            // sync/desync tracers
+        else if (215 <= xn && xn <= 240) {
+            // uni/invert
             tracersUnidirectional = !tracersUnidirectional;
         }
-        else if (135 <= xn && xn <= 165) {
+        else if (150 <= xn && xn <= 175) {
             // - n_sines
             removeSine();
         }
-        else if (105 <= xn && xn <= 135) {
+        else if (120 <= xn && xn <= 150) {
             // edit n_sines
             integerInput = 1;
         }
-        else if (10 <= xn && xn <= 40) {
-            // + n_sinesif (n_sines < MAX_SINES) {
+        else if (25 <= xn && xn <= 50) {
+            // + n_sines
             int i = n_sines;
             deselectAll();
             addSine();
