@@ -3,7 +3,7 @@
  * "Curves"
  * Submission for the mid-term project for CSE 102, BUET
  *
- * A visualizer and a feature-rich editor for sinusoids.
+ * A visualizer and a feature-rich editor of sinusoids.
  *
  * Ashrafur Rahman
  * October, 2020
@@ -123,7 +123,7 @@ int inOverlay(int x, int y);
 
 void iDraw()
 {
-    if (clickedState && Y0 <= 22)
+    if (clickedState && showBottomOverlay && Y0 <= 22)
         handleBottomOverlay(1);
     else if (overlayState && clickedState && inOverlay(X0, Y0)) {
         switch (overlayState) {
