@@ -449,6 +449,7 @@ void iKeyboard(unsigned char key)
             case 'G' - 'A' + 1: // ctrl + G
                 deselectAll();
                 graphMode = !graphMode;
+                if (graphMode && exprIsValid(expr)) fourier();
                 break;
             case 'O' - 'A' + 1: // ctrl + 0
                 backToOrigin();
@@ -1048,7 +1049,6 @@ void drawColorPicker(int w, int h, int dx, int dy, int outlined)
         iSetColorEx(rgb[0], rgb[1], rgb[2], 0.5 + 0.5 * mouseInside);
         iLine(overLayLeft + i + dx, overlayTop - dy, overLayLeft + i + dx, overlayTop - dy + h);
     }
-    // if (H0 < 0) printf("Fuck\n");
     iSetColorEx(C[sinI][0], C[sinI][1], C[sinI][2], 1);
     iFilledRectangle(overLayLeft + w * H0 / 360 + dx - 2.5, overlayTop - dy - 2, 5, h + 4);
     iSetColorEx(255, 255, 255, 0.85);
@@ -1137,6 +1137,7 @@ void handleSupOverlay(int dragging)
             drawMode     = 1;
             drawingIndex = 0;
             deselectAll();
+            if (exprIsValid(expr)) fourier();
         }
         else if (dy <= 180) {
             // resume/pause tracer
