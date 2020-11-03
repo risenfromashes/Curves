@@ -52,6 +52,18 @@ static unsigned int error_flags = 0;
 #define EXPR_ASINH 13
 #define EXPR_ACOSH 14
 #define EXPR_ATANH 15
+#define EXPR_CSC   16
+#define EXPR_SEC   17
+#define EXPR_COT   18
+#define EXPR_ACSC  19
+#define EXPR_ASEC  20
+#define EXPR_ACOT  21
+#define EXPR_CSCH  22
+#define EXPR_SECH  23
+#define EXPR_COTH  24
+#define EXPR_ACSCH 25
+#define EXPR_ASECH 26
+#define EXPR_ACOTH 27
 
 /*
  * an implementation of the interval arithmetical method discussed here:
@@ -567,6 +579,18 @@ double exprEval(const char* expr, int l, double x, double y)
                     i += 7, f = EXPR_ACOSH;
                 else if (!strncmp(expr + i, "arctanh", 7))
                     i += 7, f = EXPR_ATANH;
+                else if (!strncmp(expr + i, "csch", 4))
+                    i += 4, f = EXPR_CSCH;
+                else if (!strncmp(expr + i, "sech", 4))
+                    i += 4, f = EXPR_SECH;
+                else if (!strncmp(expr + i, "coth", 4))
+                    i += 4, f = EXPR_COTH;
+                else if (!strncmp(expr + i, "arccsch", 7))
+                    i += 7, f = EXPR_ACSCH;
+                else if (!strncmp(expr + i, "arcsech", 7))
+                    i += 7, f = EXPR_ASECH;
+                else if (!strncmp(expr + i, "arccoth", 7))
+                    i += 7, f = EXPR_ACOTH;
                 else if (!strncmp(expr + i, "sin", 3))
                     i += 3, f = EXPR_SIN;
                 else if (!strncmp(expr + i, "cos", 3))
@@ -579,6 +603,18 @@ double exprEval(const char* expr, int l, double x, double y)
                     i += 6, f = EXPR_ACOS;
                 else if (!strncmp(expr + i, "arctan", 6))
                     i += 6, f = EXPR_ATAN;
+                else if (!strncmp(expr + i, "csc", 3))
+                    i += 3, f = EXPR_CSC;
+                else if (!strncmp(expr + i, "sec", 3))
+                    i += 3, f = EXPR_SEC;
+                else if (!strncmp(expr + i, "cot", 3))
+                    i += 3, f = EXPR_COT;
+                else if (!strncmp(expr + i, "arccsc", 6))
+                    i += 6, f = EXPR_ACSC;
+                else if (!strncmp(expr + i, "arcsec", 6))
+                    i += 6, f = EXPR_ASEC;
+                else if (!strncmp(expr + i, "arccot", 6))
+                    i += 6, f = EXPR_ACOT;
                 else if (!strncmp(expr + i, "ln", 2))
                     i += 2, f = EXPR_LOG;
                 else if (!strncmp(expr + i, "log", 3))
@@ -617,6 +653,39 @@ double exprEval(const char* expr, int l, double x, double y)
                             c = acos(t);
                         break;
                     case EXPR_ATAN: c = atan(t); break;
+                    case EXPR_CSC: c = 1 / sin(t); break;
+                    case EXPR_SEC: c = 1 / cos(t); break;
+                    case EXPR_COT: c = 1 / tan(t); break;
+                    case EXPR_ACSC:
+                    case EXPR_ASEC:
+                        if (-1 < t && t < 1) {
+                            error_flags |= EXPR_UNDEFINED;
+                            return 0;
+                        }
+                        if (f == EXPR_ASINH)
+                            c = asin(1 / t);
+                        else
+                            c = acos(1 / t);
+                        break;
+                    case EXPR_ACOT: c = PI / 2 - atan(t); break;
+                    case EXPR_CSCH: c = 1 / sinh(t); break;
+                    case EXPR_SECH: c = 1 / cosh(t); break;
+                    case EXPR_COTH: c = 1 / tanh(t); break;
+                    case EXPR_ACSCH: c = asinh(1 / t); break;
+                    case EXPR_ASECH:
+                        if (t < 0 || t > 1) {
+                            error_flags |= EXPR_UNDEFINED;
+                            return 0;
+                        }
+                        c = acosh(1 / t);
+                        break;
+                    case EXPR_ACOTH:
+                        if (-1 < t && t < 1) {
+                            error_flags |= EXPR_UNDEFINED;
+                            return 0;
+                        }
+                        c = atanh(1 / t);
+                        break;
                     case EXPR_LOG:
                         if (t < 0) {
                             error_flags |= EXPR_UNDEFINED;
@@ -799,6 +868,18 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     i += 7, f = EXPR_ACOSH;
                 else if (!strncmp(expr + i, "arctanh", 7))
                     i += 7, f = EXPR_ATANH;
+                else if (!strncmp(expr + i, "csch", 4))
+                    i += 4, f = EXPR_CSCH;
+                else if (!strncmp(expr + i, "sech", 4))
+                    i += 4, f = EXPR_SECH;
+                else if (!strncmp(expr + i, "coth", 4))
+                    i += 4, f = EXPR_COTH;
+                else if (!strncmp(expr + i, "arccsch", 7))
+                    i += 7, f = EXPR_ACSCH;
+                else if (!strncmp(expr + i, "arcsech", 7))
+                    i += 7, f = EXPR_ASECH;
+                else if (!strncmp(expr + i, "arccoth", 7))
+                    i += 7, f = EXPR_ACOTH;
                 else if (!strncmp(expr + i, "sin", 3))
                     i += 3, f = EXPR_SIN;
                 else if (!strncmp(expr + i, "cos", 3))
@@ -811,6 +892,18 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     i += 6, f = EXPR_ACOS;
                 else if (!strncmp(expr + i, "arctan", 6))
                     i += 6, f = EXPR_ATAN;
+                else if (!strncmp(expr + i, "csc", 3))
+                    i += 3, f = EXPR_CSC;
+                else if (!strncmp(expr + i, "sec", 3))
+                    i += 3, f = EXPR_SEC;
+                else if (!strncmp(expr + i, "cot", 3))
+                    i += 3, f = EXPR_COT;
+                else if (!strncmp(expr + i, "arccsc", 6))
+                    i += 6, f = EXPR_ACSC;
+                else if (!strncmp(expr + i, "arcsec", 6))
+                    i += 6, f = EXPR_ASEC;
+                else if (!strncmp(expr + i, "arccot", 6))
+                    i += 6, f = EXPR_ACOT;
                 else if (!strncmp(expr + i, "ln", 2))
                     i += 2, f = EXPR_LOG;
                 else if (!strncmp(expr + i, "log", 3))
@@ -840,6 +933,18 @@ struct interval exprEvalInterval(const char* expr, int l, struct interval x, str
                     case EXPR_ASIN: c = exprAsin(t); break;
                     case EXPR_ACOS: c = exprAcos(t); break;
                     case EXPR_ATAN: c = exprAtan(t); break;
+                    case EXPR_CSC: c = exprInv(exprSin(t)); break;
+                    case EXPR_SEC: c = exprInv(exprCos(t)); break;
+                    case EXPR_COT: c = exprInv(exprTan(t)); break;
+                    case EXPR_ACSC: c = exprAsin(exprInv(t)); break;
+                    case EXPR_ASEC: c = exprAcos(exprInv(t)); break;
+                    case EXPR_ACOT: c = exprSub(exprToInterval(PI / 2), exprAtan(t)); break;
+                    case EXPR_CSCH: c = exprInv(exprSinh(t)); break;
+                    case EXPR_SECH: c = exprInv(exprCosh(t)); break;
+                    case EXPR_COTH: c = exprInv(exprTanh(t)); break;
+                    case EXPR_ACSCH: c = exprAsinh(exprInv(t)); break;
+                    case EXPR_ASECH: c = exprAcosh(exprInv(t)); break;
+                    case EXPR_ACOTH: c = exprAtanh(exprInv(t)); break;
                     case EXPR_LOG: c = exprLog(t); break;
                     case EXPR_ABS: c = exprAbs(t); break;
                     case EXPR_SQRT: c = exprSqrt(t); break;
