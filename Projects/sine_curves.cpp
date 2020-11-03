@@ -101,6 +101,8 @@ void removeSine();
 void deselectAll();
 void drawFunction(double[], double[], int);
 void drawHandDrawnCurve();
+void rememberState();
+void revertState();
 
 #define SUP_OVERLAY 1
 #define SIN_OVERLAY 2
@@ -176,7 +178,7 @@ void iMouseMove(int x, int y)
             }
         }
     }
-    else if (drawMode) {
+    else if (drawing) {
         double ds = sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0));
         if (ds > 5.0) {
             drawingX[drawingIndex] = x, drawingY[drawingIndex] = y;
@@ -276,12 +278,7 @@ void iMouse(int button, int state, int x, int y)
             if (r) {
                 if (graphMode) graphMode = 0;
                 // remember mouse click position and curve states
-                for (int i = 0; i < n_sines; i++) {
-                    A0[i] = A[i], L0[i] = L[i], P0[i] = P[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
-                    PX[i] =
-                        originX + scale * (L[i] / 4 * (2 * round(2 / L[i] * ((x - originX) / scale - P[i]) - 0.5) + 1) +
-                                           P[i]); // take the x coord of the nearest peak
-                }
+                rememberState();
             }
             else {
                 // deselect all since empty space was clicked
@@ -324,7 +321,7 @@ void iMouse(int button, int state, int x, int y)
             drawMode = drawing = 0;
             for (int i = 1; i < drawingIndex; i++) {
                 int s = drawingX[i] > drawingX[i - 1] ? 1 : -1;
-                for (int x = drawingX[i - 1]; x < drawingX[i]; x += s)
+                for (int x = drawingX[i - 1]; s * x < s * drawingX[i]; x += s)
                     fY[x] = (drawingY[i] - drawingY[i - 1]) / (drawingX[i] - drawingX[i - 1]) * (x - drawingX[i - 1]) +
                             drawingY[i - 1]; // interpolate pointts
             }
@@ -432,9 +429,7 @@ void iKeyboard(unsigned char key)
     else {
         switch (key) {
             case 'Z' - 'A' + 1: // ctrl + Z
-                for (int i = 0; i < n_sines; i++)
-                    A[i] = A0[i], L[i] = L0[i], P[i] = P0[i];
-                n_sines = n_sines0;
+                revertState();
                 break;
             case 'D' - 'A' + 1: // ctrl + G
                 drawMode     = 1;
@@ -487,13 +482,6 @@ void iKeyboard(unsigned char key)
                 break;
             case 'f':
             case 'F': toggleFullScreen(); break;
-            case 'z':
-            case 'Z':
-                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
-                    zoom(-1, -1, -1);
-                else
-                    zoom(1, -1, -1);
-                break;
             case 'q': exit(0); break;
             default: {
                 if (integerInput) {
@@ -559,9 +547,11 @@ int main()
     int    i;
     for (i = 0, x = 0; x <= MAX_WIDTH; x += dx, i++)
         X[i] = x;
-    for (i = 0; i < 7; i++)
+    for (i = 0; i < 7; i++) {
         addSine();
-    n_sines0 = 7;
+        A0[i] = A[i], L0[i] = L[i], P0[i] = P[i];
+    }
+    n_sines0 = n_sines;
     exprSetInitBounds(-5.0, 5.0, -5.0, 5.0);
     iSetTransparency(1);
     iInitializeEx(width, height, "Curves");
@@ -922,6 +912,7 @@ void fourier()
 {
     double x1, x2, y1, y2;
 
+    rememberState();
     int    l, r, t, lt;
     double dx;
     t = 0;
@@ -1132,13 +1123,13 @@ void handleSupOverlay(int dragging)
         if (0 <= dy && dy <= 30) {
             // graph
             graphMode = 1;
+            if (exprIsValid(expr)) fourier();
         }
         else if (dy <= 60) {
             // hand-draw
             drawMode     = 1;
             drawingIndex = 0;
             deselectAll();
-            if (exprIsValid(expr)) fourier();
         }
         else if (dy <= 180) {
             // resume/pause tracer
@@ -1370,12 +1361,12 @@ void handleGenOverlay(int dragging)
         if (dragging) return;
         if (0 <= dy && dy <= 30) {
             // Add curve
-            n_sines0 = n_sines;
+            rememberState();
             addSine();
         }
         else if (dy <= 60) {
             // remove curve
-            n_sines0 = n_sines;
+            rememberState();
             removeSine();
         }
         else if (dy <= 90) {
@@ -1678,18 +1669,18 @@ void handleBottomOverlay(int dragging)
         }
         else if (150 <= xn && xn <= 175) {
             // - n_sines
-            n_sines0 = n_sines;
+            rememberState();
             removeSine();
         }
         else if (120 <= xn && xn <= 150) {
             // edit n_sines
-            n_sines0     = n_sines;
+            rememberState();
             integerInput = 1;
         }
         else if (25 <= xn && xn <= 50) {
             // + n_sines
-            n_sines0 = n_sines;
-            int i    = n_sines;
+            rememberState();
+            int i = n_sines;
             deselectAll();
             addSine();
             n_selected = selected[i] = 1;
@@ -1698,6 +1689,26 @@ void handleBottomOverlay(int dragging)
             newOverlay   = 1;
         }
     }
+}
+
+void rememberState()
+{
+    n_sines0 = n_sines;
+    for (int i = 0; i < n_sines; i++) {
+        A0[i] = A[i], L0[i] = L[i], P0[i] = P[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
+        PX[i] = originX + scale * (L[i] / 4 * (2 * round(2 / L[i] * ((X0 - originX) / scale - P[i]) - 0.5) + 1) +
+                                   P[i]); // take the x coord of the nearest peak
+    }
+}
+
+void revertState()
+{
+    deselectAll();
+    n_sines = n_sines0;
+    for (int i = 0; i < n_sines; i++) {
+        A[i] = A0[i], L[i] = L0[i], P[i] = P0[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
+    }
+    overlayState = 0;
 }
 
 int inOverlay(int x, int y) { return overLayLeft <= x && x <= overlayRight && overlayBottom <= y && y <= overlayTop; }
