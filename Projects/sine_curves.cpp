@@ -810,19 +810,20 @@ void removeSine()
 
 void drawTextBox()
 {
-    double w = width * 0.25;
+    double w = max(width * 0.25, strlen(expr) * 12.0 + 100);
+    double l = (width - w) / 2;
     iSetColorEx(45, 52, 54, 0.8);
-    iFilledRectangle(width * 0.375, 50, width * 0.25, 40);
+    iFilledRectangle(l, 50, w, 40);
     iSetColor(255, 255, 255);
-    iLineEx(width * 0.375, 50, width * 0.25, 0);
+    iLineEx(l, 50, w, 0);
     if (strlen(expr) == 0) {
         iSetColorEx(255, 255, 255, 0.33);
-        iText(width * 0.375 + (w - 190.0) / 2.0, 65, "Enter your equation", GLUT_BITMAP_TIMES_ROMAN_24);
+        iText(l + (w - 190.0) / 2.0, 65, "Enter your equation", GLUT_BITMAP_TIMES_ROMAN_24);
     }
     else {
         iSetColor(255, 255, 255);
-        double l = strlen(expr) * 10.0;
-        iText(width * 0.375 + (w - l) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
+        double len = strlen(expr) * 12;
+        iText((width - len) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
     }
 }
 
