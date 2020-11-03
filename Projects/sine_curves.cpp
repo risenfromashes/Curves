@@ -1449,6 +1449,8 @@ void locateTracers()
 void drawTracers()
 {
     double r = 5;
+    if (scale < 0.5) r--;
+    if (scale > 2.0) r++;
     for (int i = 0; i <= n_sines; i++) {
         if (tracerState[i] & 1) {
             if (i < n_sines) {
@@ -1550,7 +1552,7 @@ void drawBottomOverlay()
         iSetColorEx(255, 255, 255, .2);
         iFilledRectangle(width - 415, 0, 25, 22);
     }
-    if (tracersSynced)
+    if (tracersSynced && tracerButtonMode)
         drawMiniSyncTracers(14, 10, -410, 6);
     else
         drawMiniTracers(14, 10, -410, 6);
