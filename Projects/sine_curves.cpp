@@ -20,7 +20,7 @@ const int dx = 1;
 int       N;
 int       width = 1280, height = 720;
 double    X[MAX_WIDTH + 10], Y[MAX_WIDTH + 10];
-int       n_sines = 0;
+int       n_sines = 0, n_sines0;
 double    A[MAX_SINES], L[MAX_SINES], P[MAX_SINES], C[MAX_SINES][3];
 double    A0[MAX_SINES], L0[MAX_SINES], P0[MAX_SINES], PX[MAX_SINES];
 int       selected[MAX_SINES] = {0}, n_selected = 0;
@@ -434,6 +434,7 @@ void iKeyboard(unsigned char key)
             case 'Z' - 'A' + 1: // ctrl + Z
                 for (int i = 0; i < n_sines; i++)
                     A[i] = A0[i], L[i] = L0[i], P[i] = P0[i];
+                n_sines = n_sines0;
                 break;
             case 'D' - 'A' + 1: // ctrl + G
                 drawMode     = 1;
@@ -474,6 +475,7 @@ void iKeyboard(unsigned char key)
                     pauseAllTracers();
             } break;
             case 127: // delete
+                n_sines0 = n_sines;
                 if (n_sines >= 0) removeSine();
                 break;
             case 27: // escape
@@ -535,7 +537,10 @@ void iSpecialKeyboard(unsigned char key)
     switch (key) {
         case GLUT_KEY_F11: toggleFullScreen(); break;
         case GLUT_KEY_END: exit(0); break;
-        case GLUT_KEY_INSERT: addSine(); break;
+        case GLUT_KEY_INSERT:
+            n_sines0 = n_sines;
+            addSine();
+            break;
         case GLUT_KEY_RIGHT: pan(-10, 0); break;
         case GLUT_KEY_LEFT: pan(10, 0); break;
         case GLUT_KEY_UP: pan(0, -10); break;
@@ -556,6 +561,7 @@ int main()
         X[i] = x;
     for (i = 0; i < 7; i++)
         addSine();
+    n_sines0 = 7;
     exprSetInitBounds(-5.0, 5.0, -5.0, 5.0);
     iSetTransparency(1);
     iInitializeEx(width, height, "Curves");
@@ -1364,10 +1370,12 @@ void handleGenOverlay(int dragging)
         if (dragging) return;
         if (0 <= dy && dy <= 30) {
             // Add curve
+            n_sines0 = n_sines;
             addSine();
         }
         else if (dy <= 60) {
             // remove curve
+            n_sines0 = n_sines;
             removeSine();
         }
         else if (dy <= 90) {
@@ -1670,15 +1678,18 @@ void handleBottomOverlay(int dragging)
         }
         else if (150 <= xn && xn <= 175) {
             // - n_sines
+            n_sines0 = n_sines;
             removeSine();
         }
         else if (120 <= xn && xn <= 150) {
             // edit n_sines
+            n_sines0     = n_sines;
             integerInput = 1;
         }
         else if (25 <= xn && xn <= 50) {
             // + n_sines
-            int i = n_sines;
+            n_sines0 = n_sines;
+            int i    = n_sines;
             deselectAll();
             addSine();
             n_selected = selected[i] = 1;
