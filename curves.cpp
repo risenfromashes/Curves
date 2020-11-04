@@ -71,6 +71,8 @@ int drawSummation = 1;
 
 int showHelp = 0;
 
+double eqnOverlayBottm = 0, eqnOverlayLeft = 0, eqnOverlayRight = 0, eqnOverlayTop = 0;
+
 double amplitude(int index);
 double frequency(int index);
 double phase(int index);
@@ -92,7 +94,7 @@ void showAllTracers();
 void resumeAllTracers();
 void pauseAllTracers();
 void drawTracers();
-void changeTracerSpeed(int dir);
+void changeTracerSpeed(int dir, double f);
 void drawBottomOverlay();
 void handleBottomOverlay(int);
 int selectCurve(int x, int y);
@@ -183,8 +185,7 @@ void iDraw()
     drawBottomOverlay();
     if (resized)
         resized = 0;
-    if (showHelp)
-        drawHelpScreen();
+    drawHelpScreen();
 }
 
 void iPassiveMouseMove(int x, int y) { mX = x, mY = y; }
@@ -193,21 +194,26 @@ void iMouseMove(int x, int y)
 {
     if (overlayState)
     {
-        if (inOverlay(x, y))
+        X0 = x, Y0 = y;
+        if (X0 > overlayRight)
+            X0 = overlayRight;
+        if (X0 < overLayLeft)
+            X0 = overLayLeft;
+        if (Y0 > overlayTop)
+            Y0 = overlayTop;
+        if (Y0 < overlayBottom)
+            Y0 = overlayBottom;
+        switch (overlayState)
         {
-            X0 = x, Y0 = y;
-            switch (overlayState)
-            {
-            case SUP_OVERLAY:
-                handleSupOverlay(1);
-                break;
-            case SIN_OVERLAY:
-                handleSinOverlay(1);
-                break;
-            case GEN_OVERLAY:
-                handleGenOverlay(1);
-                break;
-            }
+        case SUP_OVERLAY:
+            handleSupOverlay(1);
+            break;
+        case SIN_OVERLAY:
+            handleSinOverlay(1);
+            break;
+        case GEN_OVERLAY:
+            handleGenOverlay(1);
+            break;
         }
     }
     else if (drawing)
@@ -295,13 +301,10 @@ void iMouse(int button, int state, int x, int y)
                         return;
                     }
                 }
-                if (showHelp)
+                if (x >= width - 25 && y >= height - 25)
                 {
-                    if (x >= width - 25 && y >= height - 25)
-                    {
-                        showHelp = 0;
-                        return;
-                    }
+                    showHelp = !showHelp;
+                    return;
                 }
                 if (drawMode)
                 {
@@ -409,7 +412,8 @@ void iMouse(int button, int state, int x, int y)
         }
         // stop input on click on empty space
         if (graphMode && panning && sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0)) < 3.0)
-            graphMode = 0;
+            if (X0 < eqnOverlayLeft || X0 > eqnOverlayRight || Y0 < eqnOverlayBottm || Y0 > eqnOverlayTop)
+                graphMode = 0;
         if (panning)
             panningActive = panning = 0;
         if (n_selected > 0)
@@ -488,19 +492,15 @@ void iKeyboard(unsigned char key)
             }
             break;
         case 'F':
-            if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
+        {
+            double r = (glutGetModifiers() & GLUT_ACTIVE_SHIFT) ? 0.99 : 1.01;
+            for (int i = 0; i < n_sines; i++)
             {
-                // alt+shift+f
-                for (int i = 0; i < n_sines; i++)
-                    L[i] /= 0.99;
+                L[i] *= r;
+                P[i] *= r;
             }
-            else
-            {
-                // alt+f
-                for (int i = 0; i < n_sines; i++)
-                    L[i] /= 1.01;
-            }
-            break;
+        }
+        break;
         case 'P':
             if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
             {
@@ -628,10 +628,10 @@ void iKeyboard(unsigned char key)
                 switch (key)
                 {
                 case '+':
-                    changeTracerSpeed(1);
+                    changeTracerSpeed(1, 4);
                     break;
                 case '-':
-                    changeTracerSpeed(-1);
+                    changeTracerSpeed(-1, 4);
                     break;
                 case 'A' - 'A' + 1:
                 { // ctrl + A
@@ -996,6 +996,8 @@ void drawTextBox()
 {
     double w = max(width * 0.25, strlen(expr) * 12.0 + 100);
     double l = (width - w) / 2;
+    eqnOverlayBottm = 50, eqnOverlayTop = 90;
+    eqnOverlayLeft = l, eqnOverlayRight = l + w;
     iSetColorEx(45, 52, 54, 0.8);
     iFilledRectangle(l, 50, w, 40);
     iSetColor(255, 255, 255);
@@ -1426,60 +1428,61 @@ void handleSinOverlay(int dragging)
 {
     int dx = X0 - overLayLeft, dy = overlayTop - Y0;
     static int dragSelection = 0;
+    if (!dragging)
+        dragSelection = 0;
     static int w = 230, h = 315;
-    if (30 <= dy && dy <= 75)
+    if (55 <= dy && dy <= 75 && !dragging || dragging && dragSelection == 1)
     {
         // amplitude
-        if (!dragging || dragSelection == 1)
-        {
-            dragSelection = 1;
-            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
-                A[sinI] = max(height / 2.0 / scale, A[sinI]) / (w - 10) * (dx - 5);
-        }
+        dragSelection = 1;
+        if (dx < 5)
+            dx = 5;
+        if (dx > w - 5)
+            dx = w - 5;
+        A[sinI] = max(height / 2.0 / scale, A[sinI]) / (w - 10) * (dx - 5);
     }
-    else if (75 <= dy && dy <= 120)
+    else if (100 <= dy && dy <= 120 && !dragging || dragging && dragSelection == 2)
     {
         // frequency
-        if (!dragging || dragSelection == 2)
-        {
-            dragSelection = 2;
-            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 100))
-            {
-                double s = L[sinI] >= 0 ? 1 : -1;
-                double f0 = fabs(frequency(sinI));
-                double L0 = L[sinI];
-                L[sinI] =
-                    s * exprScreenLength(
-                            1.0 / ((max(f0, 1.0 / exprLength(25.0)) - min(f0, 0.01)) / (w - 10) * (dx - 5) + 0.01));
-                P[sinI] *= L[sinI] / L0;
-            }
-        }
+        dragSelection = 2;
+        if (dx < 5)
+            dx = 5;
+        if (dx > w - 5)
+            dx = w - 5;
+        double s = L[sinI] >= 0 ? 1 : -1;
+        double f0 = fabs(frequency(sinI));
+        double L0 = L[sinI];
+        L[sinI] =
+            s * exprScreenLength(
+                    1.0 / ((max(f0, 1.0 / exprLength(25.0)) - min(f0, 0.01)) / (w - 10) * (dx - 5) + 0.01));
+        P[sinI] *= L[sinI] / L0;
     }
-    else if (120 <= dy && dy <= 165)
+    else if (145 <= dy && dy <= 165 && !dragging || dragging && dragSelection == 4)
     {
         // phase
-        if (!dragging || dragSelection == 4)
-        {
-            dragSelection = 4;
-            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
-            {
-                double deg = -360.0 * (dx - 5) / (w - 10) + 180.0 - 90.0 * markedCosine[sinI];
-                if (fabs(fmod(deg, 30.0)) < 5.0)
-                    deg = round(deg / 30.0) * 30.0;
-                if (fabs(fmod(deg, 45.0)) < 5.0)
-                    deg = round(deg / 45.0) * 45.0;
-                P[sinI] = deg / 360.0 * L[sinI];
-            }
-        }
+        dragSelection = 4;
+        if (dx < 5)
+            dx = 5 + 1e-4;
+        if (dx >= w - 5)
+            dx = w - 5 - 1e-4;
+        double deg = -360.0 * (dx - 5) / (w - 10) + 180.0 - 90.0 * markedCosine[sinI];
+        double r1 = round(deg / 30.0) * 30.0;
+        double r2 = round(deg / 45.0) * 45.0;
+        if (fabs(r1 - deg) < 5.0)
+            deg = r1;
+        else if (fabs(r2 - deg) < 5.0)
+            deg = r2;
+        P[sinI] = deg / 360.0 * L[sinI];
     }
-    else if (205 <= dy && dy <= 225)
+    else if (205 <= dy && dy <= 225 && !dragging || dragging && dragSelection == 3)
     {
-        if (!dragging || dragSelection == 3)
-        {
-            dragSelection = 3;
-            double H = 360.0 * dx / w;
-            iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
-        }
+        dragSelection = 3;
+        if (dx < 1)
+            dx = max(dx, 1e-4);
+        if (dx > w - 1)
+            dx = min(dx, w - 1e-4);
+        double H = 360.0 * dx / w;
+        iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
     }
     else
     {
@@ -1495,12 +1498,12 @@ void handleSinOverlay(int dragging)
             markedCosine[sinI] = !markedCosine[sinI];
             return;
         }
-        else if (dy <= 195)
+        else if (165 <= dy && dy <= 195)
         {
             iRandomColor(1.0, 1.0, C[sinI]);
             return;
         }
-        else if (dy <= 255)
+        else if (220 <= dy && dy <= 255)
         {
             // pause/resume tracer
             if (tracerState[sinI] & 2)
@@ -1508,7 +1511,7 @@ void handleSinOverlay(int dragging)
             else
                 pauseTracer(sinI);
         }
-        else if (dy <= 285)
+        else if (255 <= dy && dy <= 285)
         {
             // change tracer speed
             if (tracerState[sinI] & 1)
@@ -1516,11 +1519,13 @@ void handleSinOverlay(int dragging)
             else
                 showTracer(sinI);
         }
-        else if (dy <= 315)
+        else if (285 <= dy && dy <= 315)
         {
             // resume tracer
             removeSine();
         }
+        else
+            return;
         overlayState = 0;
     }
 }
@@ -1559,11 +1564,11 @@ void drawGenOverLay()
     drawMenu("Show Help", w, 30, 0, 420, 1, 0);
 }
 
-void changeTracerSpeed(int dir)
+void changeTracerSpeed(int dir, double f)
 {
     double t = iGetTime();
     double v0 = tracerSpeed, v;
-    v = tracerSpeed += dir * 2.5;
+    v = tracerSpeed += dir * 2.5 * f;
     if (fabs(v) < 0.01)
         tracerSpeed = v = -v0;
     if (tracersSynced)
@@ -1617,9 +1622,9 @@ void handleGenOverlay(int dragging)
     {
         // tracer speed
         if (dx >= w - 100 && dx <= w - 70)
-            changeTracerSpeed(-1);
+            changeTracerSpeed(-1, 1);
         else if (dx >= w - 30)
-            changeTracerSpeed(1);
+            changeTracerSpeed(1, 1);
     }
     else
     {
@@ -1893,11 +1898,17 @@ void drawBottomOverlay()
         drawBottomMenu("", 25, -460, 1, 1);
         snprintf(text, 64, " Scale: %0.3lf", scale);
         drawBottomMenu(text, 85, -545, 1, 0);
+        double X = exprLength(width / 2.0 - originX);
+        double Y = exprLength(height / 2.0 - originY);
+        if (fabs(X) < 0.001)
+            X = 0;
+        if (fabs(Y) < 0.001)
+            Y = 0;
         snprintf(text,
                  64,
                  " Center: (%0.2lf, %0.2lf)",
-                 exprLength(width / 2.0 - originX),
-                 exprLength(height / 2.0 - originY));
+                 X,
+                 Y);
         w_ = cntrLen = strlen(text) * 6 + 2;
         drawBottomMenu(text, w_, -(545 + w_), 1, 0);
         if (n_selected == 1)
@@ -1931,12 +1942,12 @@ void handleBottomOverlay(int dragging)
     if (365 <= xn && xn <= 390)
     {
         // - tracer speed
-        changeTracerSpeed(-1);
+        changeTracerSpeed(-1, 1);
     }
     else if (190 <= xn && xn <= 215)
     {
         // + tracer speed
-        changeTracerSpeed(1);
+        changeTracerSpeed(1, 1);
     }
     else
     {
@@ -2090,27 +2101,37 @@ const char aboutString[][128] = {"A simple application written in C based the Op
 
 void drawHelpScreen()
 {
-    iSetColorEx(45, 52, 54, 0.85);
-    iFilledRectangle(width - 500, 0, 500, height);
-    iSetColorEx(255, 255, 255, 0.1);
-    iFilledRectangle(width - 25, height - 25, 25, 25);
-    iSetColor(255, 255, 255);
-    iText(width - 15, height - 15, "x", GLUT_BITMAP_HELVETICA_12);
-    iText(width - 485, height - 30, "Help", GLUT_BITMAP_HELVETICA_18);
-    iLine(width - 490, height - 40, width - 15, height - 40);
-    for (int i = 0; i < 15; i++)
+    if (showHelp)
     {
-        iText(width - 485, height - i * 20 - 60 - 5 * (i == 14), helpStrings[i], GLUT_BITMAP_HELVETICA_12);
+        iSetColorEx(45, 52, 54, 0.85);
+        iFilledRectangle(width - 500, 0, 500, height);
+        iSetColorEx(255, 255, 255, 0.1);
+        iFilledRectangle(width - 25, height - 25, 25, 25);
+        iSetColor(255, 255, 255);
+        iText(width - 15, height - 15, "x", GLUT_BITMAP_HELVETICA_12);
+        iText(width - 485, height - 30, "Help", GLUT_BITMAP_HELVETICA_18);
+        iLine(width - 490, height - 40, width - 15, height - 40);
+        for (int i = 0; i < 15; i++)
+        {
+            iText(width - 485, height - i * 20 - 60 - 5 * (i == 14), helpStrings[i], GLUT_BITMAP_HELVETICA_12);
+        }
+        iText(width - 485, height - 380, "Shortcuts", GLUT_BITMAP_HELVETICA_18);
+        iLine(width - 490, height - 390, width - 15, height - 390);
+        for (int i = 0; i < 26; i++)
+        {
+            iText(width - 485 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][0], GLUT_BITMAP_HELVETICA_12);
+            iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
+        }
+        iText(width - 485, 65, "About", GLUT_BITMAP_HELVETICA_12);
+        iLine(width - 490, 60, width - 115, 60);
+        for (int i = 0; i < 3; i++)
+            iText(width - 485, 45 - i * 14, aboutString[i], GLUT_BITMAP_HELVETICA_10);
     }
-    iText(width - 485, height - 380, "Shortcuts", GLUT_BITMAP_HELVETICA_18);
-    iLine(width - 490, height - 390, width - 15, height - 390);
-    for (int i = 0; i < 26; i++)
+    else
     {
-        iText(width - 485 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][0], GLUT_BITMAP_HELVETICA_12);
-        iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
+        iSetColorEx(255, 255, 255, 0.1);
+        iFilledRectangle(width - 25, height - 25, 25, 25);
+        iSetColor(255, 255, 255);
+        iText(width - 17, height - 20, "?", GLUT_BITMAP_HELVETICA_18);
     }
-    iText(width - 485, 65, "About", GLUT_BITMAP_HELVETICA_12);
-    iLine(width - 490, 60, width - 115, 60);
-    for (int i = 0; i < 3; i++)
-        iText(width - 485, 45 - i * 14, aboutString[i], GLUT_BITMAP_HELVETICA_10);
 }
