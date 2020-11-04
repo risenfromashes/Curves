@@ -1,0 +1,69 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "./build_debug.sh",
+                "\"${workspaceFolder}\"",
+                "\"${relativeFileDirname}\"",
+                "\"${relativeFile}\"",
+                "${fileBasenameNoExtension}"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "label": "C++: iGraphics Build",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "./build_release.sh",
+                "\"${workspaceFolder}\"",
+                "\"${relativeFileDirname}\"",
+                "\"${relativeFile}\"",
+                "${fileBasenameNoExtension}",
+                "x64"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "label": "C++: iGraphics Release x64",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "./build_release.sh",
+                "\"${workspaceFolder}\"",
+                "\"${relativeFileDirname}\"",
+                "\"${relativeFile}\"",
+                "${fileBasenameNoExtension}",
+                "x86"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "label": "C++: iGraphics Release x86"
+        }
+    ]
+}
