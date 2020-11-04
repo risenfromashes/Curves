@@ -17,48 +17,48 @@
 #define MAX_SINES 256
 
 const int dx = 1;
-int       N;
-int       width = 1280, height = 720;
-double    X[MAX_WIDTH + 10], Y[MAX_WIDTH + 10];
-int       n_sines = 0, n_sines0;
-double    A[MAX_SINES], L[MAX_SINES], P[MAX_SINES], C[MAX_SINES][3];
-double    A0[MAX_SINES], L0[MAX_SINES], P0[MAX_SINES], PX[MAX_SINES];
-int       selected[MAX_SINES] = {0}, n_selected = 0;
-int       clickedState = 0;
-double    X0, Y0;
-int       mX, mY;
-double    overLayLeft, overlayRight, overlayTop, overlayBottom;
-int       newOverlay   = 0;
-int       drawCurves   = 1;
-int       resized      = 0;
-int       isFullScreen = 0;
+int N;
+int width = 1280, height = 720;
+double X[MAX_WIDTH + 10], Y[MAX_WIDTH + 10];
+int n_sines = 0, n_sines0;
+double A[MAX_SINES], L[MAX_SINES], P[MAX_SINES], C[MAX_SINES][3];
+double A0[MAX_SINES], L0[MAX_SINES], P0[MAX_SINES], PX[MAX_SINES];
+int selected[MAX_SINES] = {0}, n_selected = 0;
+int clickedState = 0;
+double X0, Y0;
+int mX, mY;
+double overLayLeft, overlayRight, overlayTop, overlayBottom;
+int newOverlay = 0;
+int drawCurves = 1;
+int resized = 0;
+int isFullScreen = 0;
 
-int showGrid          = 0;
+int showGrid = 0;
 int showBottomOverlay = 1;
 
 int drawMode = 0, drawing = 0;
 // coordinates from the user or from the grapher for fourier estimation
 double fY[MAX_WIDTH + 10];
 double drawingX[MAX_WIDTH + 10], drawingY[MAX_WIDTH + 10];
-int    drawingIndex;
+int drawingIndex;
 // for integer input
 char numStr[8] = "";
-int  numPos    = 0;
+int numPos = 0;
 // for taking mathematical expressions
-char   expr[256] = "";
-int    exprPos   = 0;
-int    graphMode = 0, integerInput = 0;
+char expr[256] = "";
+int exprPos = 0;
+int graphMode = 0, integerInput = 0;
 double originX = width / 2.0, originY = height / 2.0;
 double panX = 0, panY = 0.0;
 double panX0 = 0, panY0 = 0.0;
-int    panning = 0, panningActive = 0;
+int panning = 0, panningActive = 0;
 double scale = 1.0;
 
 double tracerX[MAX_SINES + 5], tracerY[MAX_SINES + 5];
-int    tracerState[MAX_SINES + 5] = {0}; // first bit set if tracer showed, second bit set if tracer paused
+int tracerState[MAX_SINES + 5] = {0}; // first bit set if tracer showed, second bit set if tracer paused
 double tracerPt[MAX_SINES + 5] = {0}, tracerdt[MAX_SINES + 5] = {0};
-double tracerSyncPt, tracerSyncdt                             = 0.0;
-int    tracersSynced = 0, tracersUnidirectional = 1;
+double tracerSyncPt, tracerSyncdt = 0.0;
+int tracersSynced = 0, tracersUnidirectional = 1;
 double tracerSpeed = 150.0; // pixel/second
 // 0 for all tracers hidden
 // 1 for all tracers showed and not synced
@@ -74,7 +74,7 @@ int showHelp = 0;
 double amplitude(int index);
 double frequency(int index);
 double phase(int index);
-void   equation(int index, char* str, int size);
+void equation(int index, char *str, int size);
 
 void zoom(int dir, int x, int y);
 void pan(double dx, double dy);
@@ -95,7 +95,7 @@ void drawTracers();
 void changeTracerSpeed(int dir);
 void drawBottomOverlay();
 void handleBottomOverlay(int);
-int  selectCurve(int x, int y);
+int selectCurve(int x, int y);
 void addSine();
 void removeSine();
 void deselectAll();
@@ -108,7 +108,7 @@ void revertState();
 #define SIN_OVERLAY 2
 #define GEN_OVERLAY 3
 
-int  overlayState = 0;
+int overlayState = 0;
 void drawSupOverLay();
 void drawSinOverLay();
 void drawGenOverLay();
@@ -117,7 +117,7 @@ void handleSupOverlay(int);
 void handleSinOverlay(int);
 void handleGenOverlay(int);
 void drawTextBox();
-int  takeIntInput(unsigned char key);
+int takeIntInput(unsigned char key);
 void takeMathInput(unsigned char key);
 void fourier();
 
@@ -127,91 +127,136 @@ void iDraw()
 {
     if (clickedState && showBottomOverlay && Y0 <= 22)
         handleBottomOverlay(1);
-    else if (overlayState && clickedState && inOverlay(X0, Y0)) {
-        switch (overlayState) {
-            case SUP_OVERLAY: handleSupOverlay(1); break;
-            case SIN_OVERLAY: handleSinOverlay(1); break;
-            case GEN_OVERLAY: handleGenOverlay(1); break;
+    else if (overlayState && clickedState && inOverlay(X0, Y0))
+    {
+        switch (overlayState)
+        {
+        case SUP_OVERLAY:
+            handleSupOverlay(1);
+            break;
+        case SIN_OVERLAY:
+            handleSinOverlay(1);
+            break;
+        case GEN_OVERLAY:
+            handleGenOverlay(1);
+            break;
         }
     }
     static double scale0 = scale;
-    static double t0     = -1;
-    double        t      = iGetTime();
-    if (scale0 != scale) {
-        t0     = t;
+    static double t0 = -1;
+    double t = iGetTime();
+    if (scale0 != scale)
+    {
+        t0 = t;
         scale0 = scale;
     }
     iClear();
-    if (showGrid || graphMode || panningActive || t < t0 + 0.25) drawGrid();
+    if (showGrid || graphMode || panningActive || t < t0 + 0.25)
+        drawGrid();
     drawAxis();
-    if (graphMode) {
+    if (graphMode)
+    {
         for (int i = 0; i < MAX_WIDTH; i++)
             fY[i] = -INFINITY;
-        if ((exprPlot(expr, drawFunction) && exprUpdated()) || resized) fourier();
+        if ((exprPlot(expr, drawFunction) && exprUpdated()) || resized)
+            fourier();
     }
     locateTracers();
     drawSines();
     drawTracers();
-    switch (overlayState) {
-        case SUP_OVERLAY: drawSupOverLay(); break;
-        case SIN_OVERLAY: drawSinOverLay(); break;
-        case GEN_OVERLAY: drawGenOverLay(); break;
+    switch (overlayState)
+    {
+    case SUP_OVERLAY:
+        drawSupOverLay();
+        break;
+    case SIN_OVERLAY:
+        drawSinOverLay();
+        break;
+    case GEN_OVERLAY:
+        drawGenOverLay();
+        break;
     }
-    if (drawing) drawHandDrawnCurve();
-    if (graphMode) drawTextBox();
+    if (drawing)
+        drawHandDrawnCurve();
+    if (graphMode)
+        drawTextBox();
     drawBottomOverlay();
-    if (resized) resized = 0;
-    if (showHelp) drawHelpScreen();
+    if (resized)
+        resized = 0;
+    if (showHelp)
+        drawHelpScreen();
 }
 
 void iPassiveMouseMove(int x, int y) { mX = x, mY = y; }
 
 void iMouseMove(int x, int y)
 {
-    if (overlayState) {
-        if (inOverlay(x, y)) {
+    if (overlayState)
+    {
+        if (inOverlay(x, y))
+        {
             X0 = x, Y0 = y;
-            switch (overlayState) {
-                case SUP_OVERLAY: handleSupOverlay(1); break;
-                case SIN_OVERLAY: handleSinOverlay(1); break;
-                case GEN_OVERLAY: handleGenOverlay(1); break;
+            switch (overlayState)
+            {
+            case SUP_OVERLAY:
+                handleSupOverlay(1);
+                break;
+            case SIN_OVERLAY:
+                handleSinOverlay(1);
+                break;
+            case GEN_OVERLAY:
+                handleGenOverlay(1);
+                break;
             }
         }
     }
-    else if (drawing) {
+    else if (drawing)
+    {
         double ds = sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0));
-        if (ds > 5.0) {
+        if (ds > 5.0)
+        {
             drawingX[drawingIndex] = x, drawingY[drawingIndex] = y;
             drawingIndex++;
             X0 = x;
             Y0 = y;
         }
     }
-    else if (panning) {
-        if (!panningActive) panningActive = 1;
+    else if (panning)
+    {
+        if (!panningActive)
+            panningActive = 1;
         panX = panX0 + x - X0, panY = panY0 + y - Y0;
         originX = width / 2.0 + panX;
         originY = height / 2.0 + panY;
         exprPan(panX, panY);
     }
-    else if (clickedState && n_selected > 0) {
+    else if (clickedState && n_selected > 0)
+    {
         int one = n_selected == 1;
-        for (int i = 0; i < n_sines; i++) {
-            if (selected[i]) {
-                if (fabs(Y0 - originY) > 10.0) A[i] = (y - originY) / (Y0 - originY) * A0[i];
-                if (one) {
-                    if (fabs(PX[i] - X0) < 10.0) continue;
+        for (int i = 0; i < n_sines; i++)
+        {
+            if (selected[i])
+            {
+                if (fabs(Y0 - originY) > 10.0)
+                    A[i] = (y - originY) / (Y0 - originY) * A0[i];
+                if (one)
+                {
+                    if (fabs(PX[i] - X0) < 10.0)
+                        continue;
                     L[i] = L0[i] * (x - PX[i]) / (X0 - PX[i]);
                 }
-                else {
+                else
+                {
                     double x0 = X0;
                     if (x0 - originX < -20)
                         x0 -= 20;
                     else if (x0 - originX < 20)
                         x0 += 20;
-                    if (fabs(x - originX) >= 5.0) L[i] = L0[i] * (x - originX) / (x0 - originX);
+                    if (fabs(x - originX) >= 5.0)
+                        L[i] = L0[i] * (x - originX) / (x0 - originX);
                 }
-                if (fabs(L0[i]) >= 50.0) {
+                if (fabs(L0[i]) >= 50.0)
+                {
                     if (L[i] > 0) // min wavelength threshold
                         L[i] = max(L[i], 50);
                     else if (L[i] < 0)
@@ -227,32 +272,42 @@ void iMouseMove(int x, int y)
 void iMouse(int button, int state, int x, int y)
 {
     static int shouldDeselect = 0;
-    if (state == GLUT_DOWN) {
-        if (button < 3) {
+    if (state == GLUT_DOWN)
+    {
+        if (button < 3)
+        {
             X0 = x, Y0 = y;
-            if (button == GLUT_LEFT_BUTTON) {
+            if (button == GLUT_LEFT_BUTTON)
+            {
                 clickedState = 1;
                 integerInput = 0;
-                if (y <= 22) {
-                    if (x >= width - 25) {
+                if (y <= 22)
+                {
+                    if (x >= width - 25)
+                    {
                         showBottomOverlay = !showBottomOverlay;
                         return;
                     }
-                    else if (showBottomOverlay) {
+                    else if (showBottomOverlay)
+                    {
                         deselectAll();
                         handleBottomOverlay(0);
                         return;
                     }
                 }
-                if (showHelp) {
-                    if (x >= width - 25 && y >= height - 25) {
+                if (showHelp)
+                {
+                    if (x >= width - 25 && y >= height - 25)
+                    {
                         showHelp = 0;
                         return;
                     }
                 }
-                if (drawMode) {
+                if (drawMode)
+                {
                     // remember state of superposition
-                    for (int i = 0; i < width; i++) {
+                    for (int i = 0; i < width; i++)
+                    {
                         fY[i] = originY;
                         for (int j = 0; j < n_sines; j++)
                             fY[i] += A[j] * sin(2 * PI / L[j] * ((i - originX) / scale - P[j])) * scale;
@@ -260,12 +315,21 @@ void iMouse(int button, int state, int x, int y)
                     drawing = 1;
                     return;
                 }
-                if (overlayState) {
-                    if (inOverlay(x, y)) {
-                        switch (overlayState) {
-                            case SUP_OVERLAY: handleSupOverlay(0); break;
-                            case SIN_OVERLAY: handleSinOverlay(0); break;
-                            case GEN_OVERLAY: handleGenOverlay(0); break;
+                if (overlayState)
+                {
+                    if (inOverlay(x, y))
+                    {
+                        switch (overlayState)
+                        {
+                        case SUP_OVERLAY:
+                            handleSupOverlay(0);
+                            break;
+                        case SIN_OVERLAY:
+                            handleSinOverlay(0);
+                            break;
+                        case GEN_OVERLAY:
+                            handleGenOverlay(0);
+                            break;
                         }
                         return;
                     }
@@ -273,24 +337,29 @@ void iMouse(int button, int state, int x, int y)
                         overlayState = 0;
                 }
             }
-            int r          = selectCurve(x, y);
+            int r = selectCurve(x, y);
             shouldDeselect = r > 1; // should deselect others on mouse up
-            if (r) {
-                if (graphMode) graphMode = 0;
+            if (r)
+            {
+                if (graphMode)
+                    graphMode = 0;
                 // remember mouse click position and curve states
                 rememberState();
             }
-            else {
+            else
+            {
                 // deselect all since empty space was clicked
                 deselectAll();
-                if (button == GLUT_LEFT_BUTTON) {
+                if (button == GLUT_LEFT_BUTTON)
+                {
                     panning = 1;
                     panX0 = panX, panY0 = panY;
                     originX = width / 2.0 + panX;
                     originY = height / 2.0 + panY;
                 }
             }
-            if (button == GLUT_RIGHT_BUTTON) {
+            if (button == GLUT_RIGHT_BUTTON)
+            {
                 if (r > 1 || n_selected == 1)
                     overlayState = SIN_OVERLAY;
                 else if (n_selected == n_sines)
@@ -300,26 +369,37 @@ void iMouse(int button, int state, int x, int y)
                 newOverlay = 1;
             }
         }
-        else if (button == 3 || button == 4) {
-            if (n_selected > 0) {
+        else if (button == 3 || button == 4)
+        {
+            if (n_selected > 0)
+            {
                 int s = button == 3 ? 1 : -1;
                 for (int j = 0; j < n_sines; j++)
-                    if (selected[j]) P[j] = P[j] + s * 10;
+                    if (selected[j])
+                        P[j] = P[j] + s * 10;
             }
-            else {
-                if (button == 3) {
-                    if (scale < 1e5) zoom(1, x, y);
+            else
+            {
+                if (button == 3)
+                {
+                    if (scale < 1e5)
+                        zoom(1, x, y);
                 }
-                else {
-                    if (scale > 5e-5) zoom(-1, x, y);
+                else
+                {
+                    if (scale > 5e-5)
+                        zoom(-1, x, y);
                 }
             }
         }
     }
-    else {
-        if (drawMode && drawing) {
+    else
+    {
+        if (drawMode && drawing)
+        {
             drawMode = drawing = 0;
-            for (int i = 1; i < drawingIndex; i++) {
+            for (int i = 1; i < drawingIndex; i++)
+            {
                 int s = drawingX[i] > drawingX[i - 1] ? 1 : -1;
                 for (int x = drawingX[i - 1]; s * x < s * drawingX[i]; x += s)
                     fY[x] = (drawingY[i] - drawingY[i - 1]) / (drawingX[i] - drawingX[i - 1]) * (x - drawingX[i - 1]) +
@@ -328,24 +408,34 @@ void iMouse(int button, int state, int x, int y)
             fourier();
         }
         // stop input on click on empty space
-        if (graphMode && panning && sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0)) < 3.0) graphMode = 0;
-        if (panning) panningActive = panning = 0;
-        if (n_selected > 0) {
-            if (shouldDeselect) {
-                if (x == X0 && y == Y0) {
+        if (graphMode && panning && sqrt((x - X0) * (x - X0) + (y - Y0) * (y - Y0)) < 3.0)
+            graphMode = 0;
+        if (panning)
+            panningActive = panning = 0;
+        if (n_selected > 0)
+        {
+            if (shouldDeselect)
+            {
+                if (x == X0 && y == Y0)
+                {
                     for (int j = 0; j < n_sines; j++)
-                        if (selected[j] < 0) selected[j] = 0;
+                        if (selected[j] < 0)
+                            selected[j] = 0;
                     n_selected = 1;
                 }
-                else {
+                else
+                {
                     for (int j = 0; j < n_sines; j++)
-                        if (selected[j] < 0) selected[j] = 1;
+                        if (selected[j] < 0)
+                            selected[j] = 1;
                 }
                 shouldDeselect = 0;
             }
             // replace negative amplitude and wavelength with L/2 phase shift
-            for (int j = 0; j < n_sines; j++) {
-                if (selected[j] && A[j] < 0) P[j] += L[j] / 2, A[j] = -A[j];
+            for (int j = 0; j < n_sines; j++)
+            {
+                if (selected[j] && A[j] < 0)
+                    P[j] += L[j] / 2, A[j] = -A[j];
                 // if (selected[j] && L[j] < 0) P[j] += L[j] / 2, L[j] = -L[j];
             }
         }
@@ -378,164 +468,220 @@ void toggleFullScreen()
 
 void iKeyboard(unsigned char key)
 {
-    if (glutGetModifiers() & GLUT_ACTIVE_ALT) {
-        switch (toupper(key)) {
-            case 'A':
-                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT) {
-                    // alt+shift+a
-                    for (int i = 0; i < n_sines; i++)
-                        A[i] *= 0.99;
-                }
-                else {
-                    // alt+a
-                    // alt+shift+a
-                    for (int i = 0; i < n_sines; i++)
-                        A[i] *= 1.01;
-                }
-                break;
-            case 'F':
-                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT) {
-                    // alt+shift+f
-                    for (int i = 0; i < n_sines; i++)
-                        L[i] /= 0.99;
-                }
-                else {
-                    // alt+f
-                    for (int i = 0; i < n_sines; i++)
-                        L[i] /= 1.01;
-                }
-                break;
-            case 'P':
-                if (glutGetModifiers() & GLUT_ACTIVE_SHIFT) {
-                    // alt+shift+p
-                    for (int i = 0; i < n_sines; i++)
-                        P[i] -= 10 * L[i] / 360;
-                }
-                else {
-                    // alt+p
-                    for (int i = 0; i < n_sines; i++)
-                        P[i] += 10 * L[i] / 360;
-                }
-                break;
-            case 'S': // alt + S
-                drawSummation = !drawSummation;
-                break;
-            case 'C':
-                drawCurves = !drawCurves;
-                if (!drawCurves) deselectAll();
-                break;
+    if (glutGetModifiers() & GLUT_ACTIVE_ALT)
+    {
+        switch (toupper(key))
+        {
+        case 'A':
+            if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
+            {
+                // alt+shift+a
+                for (int i = 0; i < n_sines; i++)
+                    A[i] *= 0.99;
+            }
+            else
+            {
+                // alt+a
+                // alt+shift+a
+                for (int i = 0; i < n_sines; i++)
+                    A[i] *= 1.01;
+            }
+            break;
+        case 'F':
+            if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
+            {
+                // alt+shift+f
+                for (int i = 0; i < n_sines; i++)
+                    L[i] /= 0.99;
+            }
+            else
+            {
+                // alt+f
+                for (int i = 0; i < n_sines; i++)
+                    L[i] /= 1.01;
+            }
+            break;
+        case 'P':
+            if (glutGetModifiers() & GLUT_ACTIVE_SHIFT)
+            {
+                // alt+shift+p
+                for (int i = 0; i < n_sines; i++)
+                    P[i] -= 10 * L[i] / 360;
+            }
+            else
+            {
+                // alt+p
+                for (int i = 0; i < n_sines; i++)
+                    P[i] += 10 * L[i] / 360;
+            }
+            break;
+        case 'S': // alt + S
+            drawSummation = !drawSummation;
+            break;
+        case 'C':
+            drawCurves = !drawCurves;
+            if (!drawCurves)
+                deselectAll();
+            break;
         }
     }
-    else {
-        switch (key) {
-            case 'Z' - 'A' + 1: // ctrl + Z
-                revertState();
-                break;
-            case 'D' - 'A' + 1: // ctrl + G
-                drawMode     = 1;
-                drawingIndex = 0;
-                deselectAll();
-                break;
-            case 'G' - 'A' + 1: // ctrl + G
-                deselectAll();
-                graphMode = !graphMode;
-                if (graphMode && exprIsValid(expr)) fourier();
-                break;
-            case 'O' - 'A' + 1: // ctrl + 0
-                backToOrigin();
-                break;
-            case 'S' - 'A' + 1: // ctrl + 0
-                tracersSynced = !tracersSynced;
-                break;
-            case 'T' - 'A' +
-                1: // ctrl + T
+    else
+    {
+        switch (key)
+        {
+        case 'Z' - 'A' + 1: // ctrl + Z
+            revertState();
+            break;
+        case 'D' - 'A' + 1: // ctrl + G
+            drawMode = 1;
+            drawingIndex = 0;
+            deselectAll();
+            break;
+        case 'G' - 'A' + 1: // ctrl + G
+            deselectAll();
+            graphMode = !graphMode;
+            if (graphMode && exprIsValid(expr))
+                fourier();
+            break;
+        case 'O' - 'A' + 1: // ctrl + 0
+            backToOrigin();
+            break;
+        case 'S' - 'A' + 1: // ctrl + 0
+            tracersSynced = !tracersSynced;
+            break;
+        case 'T' - 'A' +
+            1: // ctrl + T
+        {
+            int i = 0;
+            while (i <= n_sines && !(tracerState[i] & 1))
+                i++;
+            if (i == n_sines + 1)
+                showAllTracers();
+            else
+                hideAllTracers();
+        }
+        break;
+        case 'P' - 'A' +
+            1: // ctrl + T
+        {
+            int i = 0;
+            while (i <= n_sines && (tracerState[i] & 2))
+                i++;
+            if (i == n_sines + 1)
+                resumeAllTracers();
+            else
+                pauseAllTracers();
+        }
+        break;
+        case 127: // delete
+            n_sines0 = n_sines;
+            if (n_sines >= 0)
+                removeSine();
+            break;
+        case 27: // escape
+            if (graphMode)
             {
-                int i = 0;
-                while (i <= n_sines && !(tracerState[i] & 1))
-                    i++;
-                if (i == n_sines + 1)
-                    showAllTracers();
-                else
-                    hideAllTracers();
-            } break;
-            case 'P' - 'A' +
-                1: // ctrl + T
+                graphMode = 0;
+            }
+            else if (isFullScreen)
             {
-                int i = 0;
-                while (i <= n_sines && (tracerState[i] & 2))
-                    i++;
-                if (i == n_sines + 1)
-                    resumeAllTracers();
+                glutReshapeWindow(1280, 720);
+                isFullScreen = 0;
+            }
+            break;
+        case 'f':
+        case 'F':
+            toggleFullScreen();
+            break;
+        case 'q':
+            exit(0);
+            break;
+        default:
+        {
+            if (integerInput)
+            {
+                if (!takeIntInput(key))
+                    integerInput = 0;
                 else
-                    pauseAllTracers();
-            } break;
-            case 127: // delete
-                n_sines0 = n_sines;
-                if (n_sines >= 0) removeSine();
-                break;
-            case 27: // escape
-                if (graphMode) { graphMode = 0; }
-                else if (isFullScreen) {
-                    glutReshapeWindow(1280, 720);
-                    isFullScreen = 0;
-                }
-                break;
-            case 'f':
-            case 'F': toggleFullScreen(); break;
-            case 'q': exit(0); break;
-            default: {
-                if (integerInput) {
-                    if (!takeIntInput(key))
-                        integerInput = 0;
-                    else {
-                        int n0 = n_sines;
-                        int n  = atoi(numStr);
-                        if (n > n0) {
-                            for (int i = n0; i < n; i++)
-                                addSine();
-                        }
-                        else {
-                            for (int i = n0; i > n; i--)
-                                removeSine();
-                        }
+                {
+                    int n0 = n_sines;
+                    int n = atoi(numStr);
+                    if (n > n0)
+                    {
+                        for (int i = n0; i < n; i++)
+                            addSine();
+                    }
+                    else
+                    {
+                        for (int i = n0; i > n; i--)
+                            removeSine();
                     }
                 }
-                else if (graphMode) {
-                    takeMathInput(key);
-                    return;
+            }
+            else if (graphMode)
+            {
+                takeMathInput(key);
+                return;
+            }
+            else
+            {
+                switch (key)
+                {
+                case '+':
+                    changeTracerSpeed(1);
+                    break;
+                case '-':
+                    changeTracerSpeed(-1);
+                    break;
+                case 'A' - 'A' + 1:
+                { // ctrl + A
+                    for (int i = 0; i < n_sines; i++)
+                        selected[i] = 1;
+                    n_selected = n_sines;
                 }
-                else {
-                    switch (key) {
-                        case '+': changeTracerSpeed(1); break;
-                        case '-': changeTracerSpeed(-1); break;
-                        case 'A' - 'A' + 1: { // ctrl + A
-                            for (int i = 0; i < n_sines; i++)
-                                selected[i] = 1;
-                            n_selected = n_sines;
-                        }
-                    }
                 }
-            } break;
+            }
+        }
+        break;
         }
     }
 }
 
 void iSpecialKeyboard(unsigned char key)
 {
-    switch (key) {
-        case GLUT_KEY_F11: toggleFullScreen(); break;
-        case GLUT_KEY_END: exit(0); break;
-        case GLUT_KEY_INSERT:
-            n_sines0 = n_sines;
-            addSine();
-            break;
-        case GLUT_KEY_RIGHT: pan(-10, 0); break;
-        case GLUT_KEY_LEFT: pan(10, 0); break;
-        case GLUT_KEY_UP: pan(0, -10); break;
-        case GLUT_KEY_DOWN: pan(0, 10); break;
-        case GLUT_KEY_PAGE_UP: zoom(1, -1, -1); break;
-        case GLUT_KEY_PAGE_DOWN: zoom(-1, -1, -1); break;
-        case GLUT_KEY_F1: showHelp = !showHelp; break;
+    switch (key)
+    {
+    case GLUT_KEY_F11:
+        toggleFullScreen();
+        break;
+    case GLUT_KEY_END:
+        exit(0);
+        break;
+    case GLUT_KEY_INSERT:
+        n_sines0 = n_sines;
+        addSine();
+        break;
+    case GLUT_KEY_RIGHT:
+        pan(-10, 0);
+        break;
+    case GLUT_KEY_LEFT:
+        pan(10, 0);
+        break;
+    case GLUT_KEY_UP:
+        pan(0, -10);
+        break;
+    case GLUT_KEY_DOWN:
+        pan(0, 10);
+        break;
+    case GLUT_KEY_PAGE_UP:
+        zoom(1, -1, -1);
+        break;
+    case GLUT_KEY_PAGE_DOWN:
+        zoom(-1, -1, -1);
+        break;
+    case GLUT_KEY_F1:
+        showHelp = !showHelp;
+        break;
     }
 }
 
@@ -544,10 +690,11 @@ int main()
     width = 1280, height = 720;
     N = width / dx + 2;
     double x;
-    int    i;
+    int i;
     for (i = 0, x = 0; x <= MAX_WIDTH; x += dx, i++)
         X[i] = x;
-    for (i = 0; i < 7; i++) {
+    for (i = 0; i < 7; i++)
+    {
         addSine();
         A0[i] = A[i], L0[i] = L[i], P0[i] = P[i];
     }
@@ -563,20 +710,22 @@ double frequency(int index) { return 1.0 / exprLength(L[index]); }
 double phase(int index)
 {
     double p = fmod(-360.0 * P[index] / L[index], 360.0);
-    if (markedCosine[index]) p -= 90.0;
+    if (markedCosine[index])
+        p -= 90.0;
     if (p > 180.0)
         p -= 360.0;
     else if (p < -180.0)
         p += 360.0;
-    if (fabs(p) < 0.001) p = 0;
+    if (fabs(p) < 0.001)
+        p = 0;
     return p;
 }
-void equation(int index, char* str, int size)
+void equation(int index, char *str, int size)
 {
-    double      a = amplitude(index);
-    double      w = 2 * PI * frequency(index);
-    double      p = phase(index);
-    const char* f = markedCosine[index] ? "cos" : "sin";
+    double a = amplitude(index);
+    double w = 2 * PI * frequency(index);
+    double p = phase(index);
+    const char *f = markedCosine[index] ? "cos" : "sin";
     if (fabs(p) < 0.001)
         snprintf(str, size, "y = %0.3lf %s(%0.3lfx)", a, f, w);
     else if (p > 0.0)
@@ -588,18 +737,18 @@ void equation(int index, char* str, int size)
 void backToOrigin()
 {
     panX = panY = 0;
-    originX     = width / 2;
-    originY     = height / 2;
+    originX = width / 2;
+    originY = height / 2;
 }
 void backToUnitScale()
 {
     double scale0 = scale;
     double x, y;
-    x       = originX;
-    y       = originY;
-    scale   = 1.0;
-    panX    = originX - width / 2.0;
-    panY    = originY - height / 2.0;
+    x = originX;
+    y = originY;
+    scale = 1.0;
+    panX = originX - width / 2.0;
+    panY = originY - height / 2.0;
     originX = width / 2.0 + panX;
     originY = height / 2.0 + panY;
     exprScaleBounds(scale);
@@ -621,22 +770,30 @@ void drawGrid()
 {
     double l = exprLeft(), r = exprRight(), t = exprTop(), b = exprBottom();
     double R = min(r - l, t - b);
-    int    k, m;
-    k = m     = floor(log10(R));
+    int k, m;
+    k = m = floor(log10(R));
     double du = pow(10, k);
-    switch ((int)floor(R / du)) {
-        case 1: du *= 0.2, m--; break;
-        case 2: du *= 0.25, m -= 2; break;
-        case 3:
-        case 4:
-        case 5: du *= 0.5, m--; break;
+    switch ((int)floor(R / du))
+    {
+    case 1:
+        du *= 0.2, m--;
+        break;
+    case 2:
+        du *= 0.25, m -= 2;
+        break;
+    case 3:
+    case 4:
+    case 5:
+        du *= 0.5, m--;
+        break;
     }
     char format[16];
     char num[16];
     snprintf(format, 16, "%%0.%dlf", (int)fabs(min(0.0, m)));
     iSetColorEx(255, 255, 255, 0.25);
     double x = ceil(l / du) * du, sX;
-    while (x < r) {
+    while (x < r)
+    {
         sX = exprGetScreenX(x);
         snprintf(num, 16, format, x);
         iLine(sX, 0, sX, height);
@@ -644,7 +801,8 @@ void drawGrid()
         x += du;
     }
     double y = ceil(b / du) * du, sY;
-    while (y < t) {
+    while (y < t)
+    {
         sY = exprGetScreenY(y);
         snprintf(num, 16, format, y);
         iLine(0, sY, width, sY);
@@ -655,28 +813,39 @@ void drawGrid()
 void drawSines()
 {
     static double pX[4], pY[4], qY[MAX_WIDTH], cY[MAX_WIDTH];
-    int           crossesAxis;
+    int crossesAxis;
     pY[2] = pY[3] = originY;
-    double alpha  = (n_sines <= 15) ? .2 : .1;
+    double alpha = (n_sines <= 15) ? .2 : .1;
     // draw trapezoids with the x-axis
-    for (int j = 0; j <= n_sines; j++) {
-        for (int i = 0; i < N; i++) {
-            if (j == 0) cY[i] = 0;
+    for (int j = 0; j <= n_sines; j++)
+    {
+        for (int i = 0; i < N; i++)
+        {
+            if (j == 0)
+                cY[i] = 0;
             pX[2] = pX[1] = X[i];
-            if (j < n_sines) {
+            if (j < n_sines)
+            {
                 qY[i] = pY[1] = originY + A[j] * sin(2 * PI / L[j] * ((X[i] - originX) / scale - P[j])) * scale;
                 cY[i] += qY[i] - originY;
-                if (drawCurves) iSetColorEx(C[j][0], C[j][1], C[j][2], alpha);
+                if (drawCurves)
+                    iSetColorEx(C[j][0], C[j][1], C[j][2], alpha);
             }
-            else {
+            else
+            {
                 qY[i] = pY[1] = cY[i] += originY;
-                if (drawSummation) iSetColorEx(255, 255, 255, alpha / 2);
+                if (drawSummation)
+                    iSetColorEx(255, 255, 255, alpha / 2);
             }
-            if (fabs(tracerX[j] - X[i]) < 0.5) tracerY[j] = qY[i];
-            if ((j < n_sines && drawCurves) || (j == n_sines && drawSummation)) {
-                if (i > 0) {
+            if (fabs(tracerX[j] - X[i]) < 0.5)
+                tracerY[j] = qY[i];
+            if ((j < n_sines && drawCurves) || (j == n_sines && drawSummation))
+            {
+                if (i > 0)
+                {
                     crossesAxis = (pY[0] >= originY && pY[1] < originY) || (pY[0] < originY && pY[1] >= originY);
-                    if (crossesAxis) {
+                    if (crossesAxis)
+                    {
                         // draw two triangles instead of a quadrilateral
                         pX[3] = pX[1], pY[3] = pY[1], pX[2] = pX[0];
                         pX[1] = (originY - pY[0]) * (pX[1] - pX[0]) / (pY[1] - pY[0]) + pX[0], pY[1] = originY;
@@ -691,19 +860,24 @@ void drawSines()
                 pX[3] = pX[0] = pX[1], pY[0] = pY[1];
             }
         }
-        if ((j < n_sines && drawCurves) || (j == n_sines && drawSummation)) {
+        if ((j < n_sines && drawCurves) || (j == n_sines && drawSummation))
+        {
             double stroke;
-            int    dashed = 0;
-            if (j < n_sines) {
+            int dashed = 0;
+            if (j < n_sines)
+            {
                 iSetColorEx(C[j][0], C[j][1], C[j][2], 1.0);
                 stroke = (n_sines <= 15) ? 2 : 1;
-                if (selected[j]) stroke *= 1.5;
+                if (selected[j])
+                    stroke *= 1.5;
             }
-            else {
+            else
+            {
                 dashed = 1;
                 iSetColorEx(255, 255, 255, 0.85);
                 stroke = (n_sines <= 15) ? 2.5 : 1.5;
-                if (n_selected == n_sines) {
+                if (n_selected == n_sines)
+                {
                     stroke *= 1.5;
                     dashed = 0;
                 }
@@ -719,40 +893,53 @@ int selectCurve(int x, int y)
 {
     y -= (height / 2 + panY);
     double Y, C = 0, minY = INFINITY;
-    int    sine_index = -1;
-    for (int i = 0; i <= n_sines; i++) {
-        if (i < n_sines) {
+    int sine_index = -1;
+    for (int i = 0; i <= n_sines; i++)
+    {
+        if (i < n_sines)
+        {
             Y = A[i] * sin(2 * PI / L[i] * ((x - originX) / scale - P[i])) * scale;
             C += Y;
         }
         else
             Y = C;
-        if (fabs(Y) < minY) {
-            if ((0 <= y && y <= Y + 2) || (0 >= y && y >= Y - 2)) {
-                if (i < n_sines && !drawCurves) continue;
-                if (i == n_sines && !drawSummation) continue;
+        if (fabs(Y) < minY)
+        {
+            if ((0 <= y && y <= Y + 2) || (0 >= y && y >= Y - 2))
+            {
+                if (i < n_sines && !drawCurves)
+                    continue;
+                if (i == n_sines && !drawSummation)
+                    continue;
                 sine_index = i;
-                minY       = fabs(Y);
+                minY = fabs(Y);
             }
         }
     }
-    if (sine_index == -1) return 0;
+    if (sine_index == -1)
+        return 0;
     int all = sine_index == n_sines, ctrlPressed = glutGetModifiers() & GLUT_ACTIVE_CTRL;
-    if (selected[sine_index]) { // if already selected, mark others to be deselected on mouse up
+    if (selected[sine_index])
+    { // if already selected, mark others to be deselected on mouse up
         for (int i = 0; i < n_sines; i++)
-            if (selected[i] && i != sine_index) selected[i] = -1;
+            if (selected[i] && i != sine_index)
+                selected[i] = -1;
         return 2;
     }
-    else if (all) { // select all
+    else if (all)
+    { // select all
         for (int i = 0; i < n_sines; i++)
             selected[i] = 1;
         n_selected = n_sines;
     }
-    else if (ctrlPressed) { // just add this to selected if ctrl is pressed
-        if (!selected[sine_index]) n_selected++;
+    else if (ctrlPressed)
+    { // just add this to selected if ctrl is pressed
+        if (!selected[sine_index])
+            n_selected++;
         selected[sine_index] = 1;
     }
-    else { // just select this
+    else
+    { // just select this
         for (int i = 0; i < n_sines; i++)
             selected[i] = i == sine_index;
         n_selected = 1;
@@ -761,10 +948,12 @@ int selectCurve(int x, int y)
 }
 void addSine()
 {
-    if (n_sines < MAX_SINES) {
+    if (n_sines < MAX_SINES)
+    {
         int i = n_sines++;
         iRandomColor(1, 1, C[i]);
-        if (!graphMode) {
+        if (!graphMode)
+        {
             A[i] = iRandom(50, height / 4);
             L[i] = iRandom(150, width / 2);
             P[i] = iRandom(0, width);
@@ -776,15 +965,20 @@ void addSine()
 
 void removeSine()
 {
-    if (n_sines > 0) {
-        if (n_selected > 0) {
+    if (n_sines > 0)
+    {
+        if (n_selected > 0)
+        {
             int i, r;
-            for (i = 0, r = 0; i < n_sines; i++) {
-                if (selected[i]) {
+            for (i = 0, r = 0; i < n_sines; i++)
+            {
+                if (selected[i])
+                {
                     r++;
                     selected[i] = 0;
                 }
-                else if (r > 0) {
+                else if (r > 0)
+                {
                     A[i - r] = A[i], L[i - r] = L[i], P[i - r] = P[i];
                     C[i - r][0] = C[i][0], C[i - r][1] = C[i][1], C[i - r][2] = C[i][2];
                 }
@@ -806,11 +1000,13 @@ void drawTextBox()
     iFilledRectangle(l, 50, w, 40);
     iSetColor(255, 255, 255);
     iLineEx(l, 50, w, 0);
-    if (strlen(expr) == 0) {
+    if (strlen(expr) == 0)
+    {
         iSetColorEx(255, 255, 255, 0.33);
         iText(l + (w - 190.0) / 2.0, 65, "Enter your equation", GLUT_BITMAP_TIMES_ROMAN_24);
     }
-    else {
+    else
+    {
         iSetColor(255, 255, 255);
         double len = strlen(expr) * 12;
         iText((width - len) / 2.0, 65, expr, GLUT_BITMAP_TIMES_ROMAN_24);
@@ -819,11 +1015,15 @@ void drawTextBox()
 
 int takeIntInput(unsigned char key)
 {
-    if (key == '\b') {
-        if (numPos >= 0) numStr[--numPos] = '\0';
+    if (key == '\b')
+    {
+        if (numPos >= 0)
+            numStr[--numPos] = '\0';
     }
-    else {
-        if (!isdigit(key) || numPos == 3) return 1;
+    else
+    {
+        if (!isdigit(key) || numPos == 3)
+            return 1;
         if (numPos == 1 && numStr[0] == '0')
             numStr[0] = key;
         else
@@ -835,36 +1035,46 @@ void takeMathInput(unsigned char key)
 {
     if (isalnum(key))
         expr[exprPos++] = (char)key;
-    else {
-        switch (key) {
-            case 22: // Ctrl + V
-            {
+    else
+    {
+        switch (key)
+        {
+        case 22: // Ctrl + V
+        {
 #ifdef WIN32
-                HWND hnd = GetActiveWindow();
-                if (OpenClipboard(hnd)) {
-                    if (IsClipboardFormatAvailable(CF_TEXT)) {
-                        const char* text = (const char*)GetClipboardData(CF_TEXT);
-                        for (int i = 0; text[i]; i++)
-                            if (text[i] != ' ') expr[exprPos++] = text[i];
-                    }
-                    CloseClipboard();
+            HWND hnd = GetActiveWindow();
+            if (OpenClipboard(hnd))
+            {
+                if (IsClipboardFormatAvailable(CF_TEXT))
+                {
+                    const char *text = (const char *)GetClipboardData(CF_TEXT);
+                    for (int i = 0; text[i]; i++)
+                        if (text[i] != ' ')
+                            expr[exprPos++] = text[i];
                 }
+                CloseClipboard();
+            }
 #endif
-            } break;
-            case ' ':
-            case '=':
-            case '*':
-            case '/':
-            case '+':
-            case '-':
-            case '^':
-            case '.':
-            case '(':
-            case ')': expr[exprPos++] = (char)key; break;
-            case '\b':
-                if (exprPos > 0) expr[--exprPos] = '\0';
-                break;
-            default: break;
+        }
+        break;
+        case ' ':
+        case '=':
+        case '*':
+        case '/':
+        case '+':
+        case '-':
+        case '^':
+        case '.':
+        case '(':
+        case ')':
+            expr[exprPos++] = (char)key;
+            break;
+        case '\b':
+            if (exprPos > 0)
+                expr[--exprPos] = '\0';
+            break;
+        default:
+            break;
         }
     }
     exprUpdate();
@@ -872,7 +1082,8 @@ void takeMathInput(unsigned char key)
 
 void drawFunction(double X[], double Y[], int n)
 {
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i++)
+    {
         int k = (int)max(round(X[i]), 0.0);
         fY[k] = max(Y[i], fY[k]);
     }
@@ -889,11 +1100,13 @@ void drawHandDrawnCurve()
 void zoom(int dir, int x, int y)
 {
     double scale0 = scale;
-    if (x < 0) x = originX;
-    if (y < 0) y = originY;
+    if (x < 0)
+        x = originX;
+    if (y < 0)
+        y = originY;
     scale += dir * scale * 0.05;
-    panX    = x - scale / scale0 * (x - originX) - width / 2.0;
-    panY    = y - scale / scale0 * (y - originY) - height / 2.0;
+    panX = x - scale / scale0 * (x - originX) - width / 2.0;
+    panY = y - scale / scale0 * (y - originY) - height / 2.0;
     originX = width / 2.0 + panX;
     originY = height / 2.0 + panY;
     exprScaleBounds(scale);
@@ -913,7 +1126,7 @@ void fourier()
     double x1, x2, y1, y2;
 
     rememberState();
-    int    l, r, t, lt;
+    int l, r, t, lt;
     double dx;
     t = 0;
     while (!isfinite(fY[t]))
@@ -921,17 +1134,19 @@ void fourier()
     l = t, t = width - 1; // leftmost x-cord
     while (!isfinite(fY[t]))
         t--;
-    r                   = t; // rightmost x-cord
+    r = t; // rightmost x-cord
     double a[MAX_SINES] = {0}, b[MAX_SINES] = {0};
     double period = r - l, w;
-    w             = 2 * PI / period;
-    for (t = l + 1, lt = l; t <= r;) {
+    w = 2 * PI / period;
+    for (t = l + 1, lt = l; t <= r;)
+    {
         while (!isfinite(fY[t]))
             t++;
         x1 = lt - l, x2 = t - l;
         y1 = fY[lt] - originY, y2 = fY[t] - originY;
         dx = x2 - x1;
-        for (int j = 1; j <= n_sines; j++) {
+        for (int j = 1; j <= n_sines; j++)
+        {
             // trapezoid approximation
             a[j - 1] += 2 / period * (y1 * cos(j * w * x1) + y2 * cos(j * w * x2)) * dx / 2.0;
             b[j - 1] += 2 / period * (y1 * sin(j * w * x1) + y2 * sin(j * w * x2)) * dx / 2.0;
@@ -940,7 +1155,8 @@ void fourier()
         while (!isfinite(fY[t]))
             t++;
     }
-    for (int i = 0; i < n_sines; i++) {
+    for (int i = 0; i < n_sines; i++)
+    {
         A[i] = sqrt(a[i] * a[i] + b[i] * b[i]) / scale;
         L[i] = period / (i + 1) / scale;
         P[i] = (-atan2(a[i], b[i])) * L[i] / (2 * PI) + (l - originX) / scale;
@@ -949,13 +1165,15 @@ void fourier()
 
 // the scale and delta factors for the overlays
 double supA, supF, supP;
-int    sinI;
+int sinI;
 
 void drawBasicOverlay(int w, int h)
 {
-    if (newOverlay) {
+    if (newOverlay)
+    {
         supA = supF = 1, supP = 0;
-        if (overlayState == SIN_OVERLAY) {
+        if (overlayState == SIN_OVERLAY)
+        {
             sinI = 0;
             while (!selected[sinI])
                 sinI++;
@@ -974,11 +1192,13 @@ void drawBasicOverlay(int w, int h)
     iFilledRectangle(overLayLeft, overlayBottom, w, h);
 }
 
-void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int aligned)
+void drawMenu(const char *text, int w, int h, int dx, int dy, int filled, int aligned)
 {
-    if (filled) {
+    if (filled)
+    {
         if (overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY &&
-            mY <= overlayTop - dy + h) {
+            mY <= overlayTop - dy + h)
+        {
             iSetColorEx(255, 255, 255, 0.1);
             iFilledRectangle(overLayLeft + dx, overlayTop - dy, w, h);
             iSetColorEx(255, 255, 255, 1.0);
@@ -993,7 +1213,7 @@ void drawMenu(const char* text, int w, int h, int dx, int dy, int filled, int al
     iText(overLayLeft + dx, overlayTop - dy + 10, text, GLUT_BITMAP_HELVETICA_12);
 }
 
-void drawScaleMenu(const char* text, double value, const char* format, int w, int h, int dx, int dy)
+void drawScaleMenu(const char *text, double value, const char *format, int w, int h, int dx, int dy)
 {
     char str[8];
     drawMenu(text, w, h, dx, dy, 1, 0);
@@ -1004,9 +1224,10 @@ void drawScaleMenu(const char* text, double value, const char* format, int w, in
     drawMenu("+", 30, h, dx + w - 30, dy, 1, 1);
 }
 
-void drawSlideMenu(const char* title, double value, double min, double max, int w, int h, int dx, int dy)
+void drawSlideMenu(const char *title, double value, double min, double max, int w, int h, int dx, int dy)
 {
-    if (overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY && mY <= overlayTop - dy + h) {
+    if (overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY && mY <= overlayTop - dy + h)
+    {
         iSetColorEx(255, 255, 255, 0.1);
         iFilledRectangle(overLayLeft + dx, overlayTop - dy, w, h);
         iSetColorEx(255, 255, 255, 1.0);
@@ -1019,8 +1240,8 @@ void drawSlideMenu(const char* title, double value, double min, double max, int 
     iText(overLayLeft + dx + w - strlen(str) * 6 - 10, overlayTop - dy + h - 18, str, GLUT_BITMAP_HELVETICA_12);
     iSetColorEx(255, 255, 255, 0.2);
     iFilledRectangle(overLayLeft + dx + 5, overlayTop - dy + 8, w - 10, 5);
-    min      = min(value, min);
-    max      = max(value, max);
+    min = min(value, min);
+    max = max(value, max);
     double p = (value - min) / (max - min) * (w - 10) + overLayLeft + dx + 5;
     iSetColorEx(255, 255, 255, 0.67);
     iFilledRectangle(p - 2, overlayTop - dy + 3, 4, 15);
@@ -1029,13 +1250,14 @@ void drawSlideMenu(const char* title, double value, double min, double max, int 
 void drawColorPicker(int w, int h, int dx, int dy, int outlined)
 {
     double rgb[3];
-    int    mouseInside =
+    int mouseInside =
         overLayLeft + dx <= mX && mX <= overLayLeft + dx + w && overlayTop - dy <= mY && mY <= overlayTop - dy + h;
     double hsv[3];
     iRGBtoHSV(C[sinI][0], C[sinI][1], C[sinI][2], hsv);
-    double H0     = hsv[0];
-    int    marked = 0;
-    for (int i = 0; i < w; i++) {
+    double H0 = hsv[0];
+    int marked = 0;
+    for (int i = 0; i < w; i++)
+    {
         double H = 360 * i / w;
         iHSVtoRGB(H, 1.0, 1.0, rgb);
         iSetColorEx(rgb[0], rgb[1], rgb[2], 0.5 + 0.5 * mouseInside);
@@ -1045,7 +1267,8 @@ void drawColorPicker(int w, int h, int dx, int dy, int outlined)
     iFilledRectangle(overLayLeft + w * H0 / 360 + dx - 2.5, overlayTop - dy - 2, 5, h + 4);
     iSetColorEx(255, 255, 255, 0.85);
     iRectangleEx(overLayLeft + w * H0 / 360 + dx - 2.5, overlayTop - dy - 2, 5, h + 4, 1);
-    if (outlined) {
+    if (outlined)
+    {
         iSetColorEx(255, 255, 255, 1);
         iLine(overLayLeft + dx, overlayTop - dy, overLayLeft + dx + w, overlayTop - dy);
     }
@@ -1084,72 +1307,89 @@ void drawSupOverLay()
 void handleSupOverlay(int dragging)
 {
     static int w = 230, h = 240;
-    int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
-    if (60 <= dy && dy <= 90) {
+    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    if (60 <= dy && dy <= 90)
+    {
         // scale amp
-        if (dx >= w - 100 && dx <= w - 70) {
-            if (supA > 0.01) supA -= 0.01;
+        if (dx >= w - 100 && dx <= w - 70)
+        {
+            if (supA > 0.01)
+                supA -= 0.01;
         }
         else if (dx >= w - 30)
             supA += 0.01;
         for (int i = 0; i < n_sines; i++)
             A[i] = A0[i] * supA;
     }
-    else if (90 <= dy && dy <= 120) {
+    else if (90 <= dy && dy <= 120)
+    {
         // scale freq
         if (dx >= w - 100 && dx <= w - 70)
             supF -= 0.005;
         else if (dx >= w - 30)
             supF += 0.005;
-        for (int i = 0; i < n_sines; i++) {
+        for (int i = 0; i < n_sines; i++)
+        {
             L[i] = L0[i] / supF;
             P[i] = P0[i] / supF + L0[i] / 360.0 * supP / supF; // common eqn
         }
     }
-    else if (120 <= dy && dy <= 150) {
+    else if (120 <= dy && dy <= 150)
+    {
         // change phase
         if (dx >= w - 100 && dx <= w - 70)
             supP -= 2.5;
         else if (dx >= w - 30)
             supP += 2.5;
         fmod(supP, 360.0);
-        if (supP > 180.0) supP -= 360.0;
-        if (supP < -180.0) supP += 360.0;
+        if (supP > 180.0)
+            supP -= 360.0;
+        if (supP < -180.0)
+            supP += 360.0;
         for (int i = 0; i < n_sines; i++)
             P[i] = P0[i] / supF + L0[i] / 360.0 * supP / supF; // common eqn
     }
-    else {
-        if (dragging) return;
-        if (0 <= dy && dy <= 30) {
+    else
+    {
+        if (dragging)
+            return;
+        if (0 <= dy && dy <= 30)
+        {
             // graph
             graphMode = 1;
-            if (exprIsValid(expr)) fourier();
+            if (exprIsValid(expr))
+                fourier();
         }
-        else if (dy <= 60) {
+        else if (dy <= 60)
+        {
             // hand-draw
-            drawMode     = 1;
+            drawMode = 1;
             drawingIndex = 0;
             deselectAll();
         }
-        else if (dy <= 180) {
+        else if (dy <= 180)
+        {
             // resume/pause tracer
             if (tracerState[n_sines] & 2)
                 resumeTracer(n_sines);
             else
                 pauseTracer(n_sines);
         }
-        else if (dy <= 210) {
+        else if (dy <= 210)
+        {
             // show/hide tracer
             if (tracerState[n_sines] & 1)
                 hideTracer(n_sines);
             else
                 showTracer(n_sines);
         }
-        else if (dy <= 240) {
+        else if (dy <= 240)
+        {
             // show/hide curves
             drawCurves = !drawCurves;
         }
-        else if (dy <= 270) {
+        else if (dy <= 270)
+        {
             // hide summation
             drawSummation = 0;
         }
@@ -1184,23 +1424,28 @@ void drawSinOverLay()
 }
 void handleSinOverlay(int dragging)
 {
-    int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
     static int dragSelection = 0;
     static int w = 230, h = 315;
-    if (30 <= dy && dy <= 75) {
+    if (30 <= dy && dy <= 75)
+    {
         // amplitude
-        if (!dragging || dragSelection == 1) {
+        if (!dragging || dragSelection == 1)
+        {
             dragSelection = 1;
             if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
                 A[sinI] = max(height / 2.0 / scale, A[sinI]) / (w - 10) * (dx - 5);
         }
     }
-    else if (75 <= dy && dy <= 120) {
+    else if (75 <= dy && dy <= 120)
+    {
         // frequency
-        if (!dragging || dragSelection == 2) {
+        if (!dragging || dragSelection == 2)
+        {
             dragSelection = 2;
-            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 100)) {
-                double s  = L[sinI] >= 0 ? 1 : -1;
+            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 100))
+            {
+                double s = L[sinI] >= 0 ? 1 : -1;
                 double f0 = fabs(frequency(sinI));
                 double L0 = L[sinI];
                 L[sinI] =
@@ -1210,28 +1455,38 @@ void handleSinOverlay(int dragging)
             }
         }
     }
-    else if (120 <= dy && dy <= 165) {
+    else if (120 <= dy && dy <= 165)
+    {
         // phase
-        if (!dragging || dragSelection == 4) {
+        if (!dragging || dragSelection == 4)
+        {
             dragSelection = 4;
-            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55)) {
+            if (5 <= dx && dx <= w - 5 && (dragging || dy >= 55))
+            {
                 double deg = -360.0 * (dx - 5) / (w - 10) + 180.0 - 90.0 * markedCosine[sinI];
-                if (fabs(fmod(deg, 30.0)) < 5.0) deg = round(deg / 30.0) * 30.0;
-                if (fabs(fmod(deg, 45.0)) < 5.0) deg = round(deg / 45.0) * 45.0;
+                if (fabs(fmod(deg, 30.0)) < 5.0)
+                    deg = round(deg / 30.0) * 30.0;
+                if (fabs(fmod(deg, 45.0)) < 5.0)
+                    deg = round(deg / 45.0) * 45.0;
                 P[sinI] = deg / 360.0 * L[sinI];
             }
         }
     }
-    else if (205 <= dy && dy <= 225) {
-        if (!dragging || dragSelection == 3) {
+    else if (205 <= dy && dy <= 225)
+    {
+        if (!dragging || dragSelection == 3)
+        {
             dragSelection = 3;
-            double H      = 360.0 * dx / w;
+            double H = 360.0 * dx / w;
             iHSVtoRGB(H, 1.0, 1.0, C[sinI]);
         }
     }
-    else {
-        if (dragging) return;
-        if (dy <= 30) {
+    else
+    {
+        if (dragging)
+            return;
+        if (dy <= 30)
+        {
             // sine/cosine
             if (markedCosine[sinI])
                 P[sinI] += L[sinI] / 4.0;
@@ -1240,25 +1495,29 @@ void handleSinOverlay(int dragging)
             markedCosine[sinI] = !markedCosine[sinI];
             return;
         }
-        else if (dy <= 195) {
+        else if (dy <= 195)
+        {
             iRandomColor(1.0, 1.0, C[sinI]);
             return;
         }
-        else if (dy <= 255) {
+        else if (dy <= 255)
+        {
             // pause/resume tracer
             if (tracerState[sinI] & 2)
                 resumeTracer(sinI);
             else
                 pauseTracer(sinI);
         }
-        else if (dy <= 285) {
+        else if (dy <= 285)
+        {
             // change tracer speed
             if (tracerState[sinI] & 1)
                 hideTracer(sinI);
             else
                 showTracer(sinI);
         }
-        else if (dy <= 315) {
+        else if (dy <= 315)
+        {
             // resume tracer
             removeSine();
         }
@@ -1302,13 +1561,15 @@ void drawGenOverLay()
 
 void changeTracerSpeed(int dir)
 {
-    double t  = iGetTime();
+    double t = iGetTime();
     double v0 = tracerSpeed, v;
-    v         = tracerSpeed += dir * 2.5;
-    if (fabs(v) < 0.01) tracerSpeed = v = -v0;
+    v = tracerSpeed += dir * 2.5;
+    if (fabs(v) < 0.01)
+        tracerSpeed = v = -v0;
     if (tracersSynced)
         tracerSyncdt = t - v0 / v * (t - tracerSyncdt);
-    else {
+    else
+    {
         for (int i = 0; i <= n_sines; i++)
             tracerdt[i] = t - v0 / v * (t - tracerdt[i]);
     }
@@ -1332,7 +1593,8 @@ void showAllTracers()
 void resumeAllTracers()
 {
     double t = iGetTime();
-    for (int i = 0; i <= n_sines; i++) {
+    for (int i = 0; i <= n_sines; i++)
+    {
         tracerdt[i] += t - tracerPt[i];
         tracerState[i] &= ~2;
     }
@@ -1340,7 +1602,8 @@ void resumeAllTracers()
 void pauseAllTracers()
 {
     double t = iGetTime();
-    for (int i = 0; i <= n_sines; i++) {
+    for (int i = 0; i <= n_sines; i++)
+    {
         tracerPt[i] = t;
         tracerState[i] |= 2;
     }
@@ -1349,67 +1612,83 @@ void pauseAllTracers()
 void handleGenOverlay(int dragging)
 {
     static int w = 220, h = 420;
-    int        dx = X0 - overLayLeft, dy = overlayTop - Y0;
-    if (300 <= dy && dy <= 330) {
+    int dx = X0 - overLayLeft, dy = overlayTop - Y0;
+    if (300 <= dy && dy <= 330)
+    {
         // tracer speed
         if (dx >= w - 100 && dx <= w - 70)
             changeTracerSpeed(-1);
         else if (dx >= w - 30)
             changeTracerSpeed(1);
     }
-    else {
-        if (dragging) return;
-        if (0 <= dy && dy <= 30) {
+    else
+    {
+        if (dragging)
+            return;
+        if (0 <= dy && dy <= 30)
+        {
             // Add curve
             rememberState();
             addSine();
         }
-        else if (dy <= 60) {
+        else if (dy <= 60)
+        {
             // remove curve
             rememberState();
             removeSine();
         }
-        else if (dy <= 90) {
+        else if (dy <= 90)
+        {
             // show/hide curves
             drawCurves = !drawCurves;
         }
-        else if (dy <= 120) {
+        else if (dy <= 120)
+        {
             // Hide/show superposition
             drawSummation = !drawSummation;
         }
-        else if (dy <= 150) {
+        else if (dy <= 150)
+        {
             // resume tracers
             resumeAllTracers();
         }
-        else if (dy <= 180) {
+        else if (dy <= 180)
+        {
             // pause tracers
             pauseAllTracers();
         }
-        else if (dy <= 210) {
+        else if (dy <= 210)
+        {
             // show tracers
             showAllTracers();
         }
-        else if (dy <= 240) {
+        else if (dy <= 240)
+        {
             // hide tracers
             hideAllTracers();
         }
-        else if (dy <= 270) {
+        else if (dy <= 270)
+        {
             // sync/desync
             tracersSynced = !tracersSynced;
         }
-        else if (dy <= 300) {
+        else if (dy <= 300)
+        {
             // motion direction
             tracersUnidirectional = !tracersUnidirectional;
         }
-        else if (dy <= 360) {
+        else if (dy <= 360)
+        {
             // back to origin
             backToOrigin();
         }
-        else if (dy <= 390) {
+        else if (dy <= 390)
+        {
             // show/hide grid
             showGrid = !showGrid;
         }
-        else if (dy <= 420) {
+        else if (dy <= 420)
+        {
             // show help
             showHelp = 1;
         }
@@ -1420,28 +1699,36 @@ void locateTracers()
 {
     double t = iGetTime();
     double x = (t - tracerSyncdt) * tracerSpeed;
-    for (int i = 0; i <= n_sines; i++) {
-        if ((tracerState[i] & 1) && !(tracerState[i] & 2)) { // showed and resumed
-            if (tracersSynced) {
-                if (tracersUnidirectional) {
-                    x          = fmod(x, width);
+    for (int i = 0; i <= n_sines; i++)
+    {
+        if ((tracerState[i] & 1) && !(tracerState[i] & 2))
+        { // showed and resumed
+            if (tracersSynced)
+            {
+                if (tracersUnidirectional)
+                {
+                    x = fmod(x, width);
                     tracerX[i] = fmod(x + width, width);
                 }
-                else {
-                    x          = fmod(x, 2 * width);
+                else
+                {
+                    x = fmod(x, 2 * width);
                     tracerX[i] = fabs(fmod(x + 2 * width, 2 * width) - width);
                 }
             }
-            else {
+            else
+            {
                 x = (t - tracerdt[i]) * tracerSpeed;
-                if (tracersUnidirectional) {
+                if (tracersUnidirectional)
+                {
                     x = fmod(x, width);
                     if (i < n_sines)
                         tracerX[i] = fmod(x + P[i] + width + originX, width);
                     else
                         tracerX[n_sines] = fmod(x + width + originX, width);
                 }
-                else {
+                else
+                {
                     x = fmod(x, 2 * width);
                     if (i < n_sines)
                         tracerX[i] = fabs(fmod(x + P[i] + 2 * width + originX, 2 * width) - width);
@@ -1455,15 +1742,21 @@ void locateTracers()
 void drawTracers()
 {
     double r = 5;
-    if (scale < 0.5) r--;
-    if (scale > 2.0) r++;
-    for (int i = 0; i <= n_sines; i++) {
-        if (tracerState[i] & 1) {
-            if (i < n_sines) {
+    if (scale < 0.5)
+        r--;
+    if (scale > 2.0)
+        r++;
+    for (int i = 0; i <= n_sines; i++)
+    {
+        if (tracerState[i] & 1)
+        {
+            if (i < n_sines)
+            {
                 iSetColor(C[i][0], C[i][1], C[i][2]);
                 iFilledCircle(tracerX[i], tracerY[i], r);
             }
-            else {
+            else
+            {
                 iSetColorEx(255, 255, 255, 0.85);
                 iFilledCircle(tracerX[n_sines], tracerY[n_sines], r + 1);
                 iSetColorEx(255, 255, 255, 1);
@@ -1489,14 +1782,17 @@ void showTracer(int i) { tracerState[i] |= 1; }
 void hideTracer(int i) { tracerState[i] &= ~1; }
 
 // 1 highlight, 2 to always highlight
-void drawBottomMenu(const char* text, int w, int dx, int highlight, int large)
+void drawBottomMenu(const char *text, int w, int dx, int highlight, int large)
 {
-    if (dx < 0) dx += width;
+    if (dx < 0)
+        dx += width;
     iSetColor(255, 255, 255);
     if (strlen(text) > 0)
         iText(dx + 5, 4 + 3 * (!large), text, large ? GLUT_BITMAP_TIMES_ROMAN_24 : GLUT_BITMAP_HELVETICA_12);
-    if (highlight) {
-        if (highlight == 2 || mY <= 22 && mX >= dx && mX <= dx + w) {
+    if (highlight)
+    {
+        if (highlight == 2 || mY <= 22 && mX >= dx && mX <= dx + w)
+        {
             iSetColorEx(255, 255, 255, 0.1);
             iFilledRectangle(dx, 0, w, 22);
             iSetColor(255, 255, 255);
@@ -1505,7 +1801,7 @@ void drawBottomMenu(const char* text, int w, int dx, int highlight, int large)
     }
 }
 
-void drawBottomScaleMenu(const char* text1, const char* text2, int w1, int w2, int dx, int h1, int h2, int highlight)
+void drawBottomScaleMenu(const char *text1, const char *text2, int w1, int w2, int dx, int h1, int h2, int highlight)
 {
     drawBottomMenu("-", 25, dx, 1, 1);
     drawBottomMenu(text1, w1, dx + 30, h1, 0);
@@ -1515,7 +1811,8 @@ void drawBottomScaleMenu(const char* text1, const char* text2, int w1, int w2, i
 
 void drawMiniGrid(int w, int h, int dx, int dy)
 {
-    if (dx < 0) dx += width;
+    if (dx < 0)
+        dx += width;
     iSetColor(255, 255, 255);
     iLineEx(dx, dy + h / 3.0, w, 0);
     iLineEx(dx, dy + 2 * h / 3.0, w, 0);
@@ -1525,14 +1822,16 @@ void drawMiniGrid(int w, int h, int dx, int dy)
 
 void drawMiniTracers(int w, int h, int dx, int dy)
 {
-    if (dx < 0) dx += width;
+    if (dx < 0)
+        dx += width;
     iSetColor(255, 255, 255);
     for (int i = 0; i < 3; i++)
         iFilledCircle(dx + i * w / 2.0, dy + i * h / 2, 2.5, 25);
 }
 void drawMiniSyncTracers(int w, int h, int dx, int dy)
 {
-    if (dx < 0) dx += width;
+    if (dx < 0)
+        dx += width;
     iSetColor(255, 255, 255);
     for (int i = 0; i < 3; i++)
         iFilledCircle(dx + w / 2.0, dy + i * h / 2.0, 2.5, 25);
@@ -1540,7 +1839,8 @@ void drawMiniSyncTracers(int w, int h, int dx, int dy)
 
 void drawArrow(int up, int w, int h, int dx, int dy)
 {
-    if (dx < 0) dx += width;
+    if (dx < 0)
+        dx += width;
     double X[] = {dx * 1.0, dx + w / 2.0, dx + w * 1.0}, Y[] = {1.0 * dy, 1.0 * dy, 1.0 * dy};
     if (up)
         Y[1] += h;
@@ -1552,7 +1852,8 @@ void drawArrow(int up, int w, int h, int dx, int dy)
 
 void drawShowHideMenu()
 {
-    if (mY <= 22 && mX >= width - 25) {
+    if (mY <= 22 && mX >= width - 25)
+    {
         iSetColorEx(255, 255, 255, 0.2);
         iFilledRectangle(width - 25, 0, 25, 22);
     }
@@ -1562,9 +1863,10 @@ int eqnLen, cntrLen;
 
 void drawBottomOverlay()
 {
-    if (showBottomOverlay) {
+    if (showBottomOverlay)
+    {
         char text[64];
-        int  w_;
+        int w_;
         iSetColorEx(45, 52, 54, 0.95);
         iFilledRectangle(0, 0, width, 22);
         drawShowHideMenu();
@@ -1572,7 +1874,8 @@ void drawBottomOverlay()
         drawBottomScaleMenu(text, " sinusoids", 30, 65, -175, 1 + integerInput, 0, 1);
         snprintf(text, 64, "Tracer Speed %0.1lf", tracerSpeed);
         drawBottomScaleMenu(text, tracersUnidirectional ? ">>" : "<>", 125, 25, -390, 0, 1, 1);
-        if (tracerButtonMode) {
+        if (tracerButtonMode)
+        {
             iSetColorEx(255, 255, 255, .2);
             iFilledRectangle(width - 420, 0, 25, 22);
         }
@@ -1581,7 +1884,8 @@ void drawBottomOverlay()
         else
             drawMiniTracers(14, 10, -415, 6);
         drawBottomMenu("", 25, -420, 1, 1);
-        if (showGrid) {
+        if (showGrid)
+        {
             iSetColorEx(255, 255, 255, .2);
             iFilledRectangle(width - 460, 0, 25, 22);
         }
@@ -1596,7 +1900,8 @@ void drawBottomOverlay()
                  exprLength(height / 2.0 - originY));
         w_ = cntrLen = strlen(text) * 6 + 2;
         drawBottomMenu(text, w_, -(545 + w_), 1, 0);
-        if (n_selected == 1) {
+        if (n_selected == 1)
+        {
             int i = 0;
             while (!selected[i])
                 i++;
@@ -1623,61 +1928,79 @@ void drawBottomOverlay()
 void handleBottomOverlay(int dragging)
 {
     int x = X0, xn = width - X0;
-    if (365 <= xn && xn <= 390) {
+    if (365 <= xn && xn <= 390)
+    {
         // - tracer speed
         changeTracerSpeed(-1);
     }
-    else if (190 <= xn && xn <= 215) {
+    else if (190 <= xn && xn <= 215)
+    {
         // + tracer speed
         changeTracerSpeed(1);
     }
-    else {
-        if (dragging) return;
-        if (50 <= x && x <= 50 + eqnLen) {
+    else
+    {
+        if (dragging)
+            return;
+        if (50 <= x && x <= 50 + eqnLen)
+        {
             // eqn
             X0 = 50, Y0 = 22;
             overlayState = SIN_OVERLAY;
-            newOverlay   = 1;
+            newOverlay = 1;
         }
-        else if (545 <= xn && xn <= 545 + cntrLen) {
+        else if (545 <= xn && xn <= 545 + cntrLen)
+        {
             // center
             backToOrigin();
         }
-        else if (460 <= xn && xn <= 545) {
+        else if (460 <= xn && xn <= 545)
+        {
             // scale
             backToUnitScale();
         }
-        else if (395 <= xn && xn <= 420) {
+        else if (395 <= xn && xn <= 420)
+        {
             // tracer button
             tracerButtonMode = (tracerButtonMode + 1) % 3;
-            switch (tracerButtonMode) {
-                case 0: hideAllTracers(); break;
-                case 1:
-                    tracersSynced = 0;
-                    showAllTracers();
-                    break;
-                case 2: tracersSynced = 1; break;
+            switch (tracerButtonMode)
+            {
+            case 0:
+                hideAllTracers();
+                break;
+            case 1:
+                tracersSynced = 0;
+                showAllTracers();
+                break;
+            case 2:
+                tracersSynced = 1;
+                break;
             }
         }
-        else if (435 <= xn && xn <= 460) {
+        else if (435 <= xn && xn <= 460)
+        {
             // show/hide grid
             showGrid = !showGrid;
         }
-        else if (215 <= xn && xn <= 240) {
+        else if (215 <= xn && xn <= 240)
+        {
             // uni/invert
             tracersUnidirectional = !tracersUnidirectional;
         }
-        else if (150 <= xn && xn <= 175) {
+        else if (150 <= xn && xn <= 175)
+        {
             // - n_sines
             rememberState();
             removeSine();
         }
-        else if (120 <= xn && xn <= 150) {
+        else if (120 <= xn && xn <= 150)
+        {
             // edit n_sines
             rememberState();
             integerInput = 1;
         }
-        else if (25 <= xn && xn <= 50) {
+        else if (25 <= xn && xn <= 50)
+        {
             // + n_sines
             rememberState();
             int i = n_sines;
@@ -1686,7 +2009,7 @@ void handleBottomOverlay(int dragging)
             n_selected = selected[i] = 1;
             X0 = width, Y0 = 22;
             overlayState = SIN_OVERLAY;
-            newOverlay   = 1;
+            newOverlay = 1;
         }
     }
 }
@@ -1694,7 +2017,8 @@ void handleBottomOverlay(int dragging)
 void rememberState()
 {
     n_sines0 = n_sines;
-    for (int i = 0; i < n_sines; i++) {
+    for (int i = 0; i < n_sines; i++)
+    {
         A0[i] = A[i], L0[i] = L[i], P0[i] = P[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
         PX[i] = originX + scale * (L[i] / 4 * (2 * round(2 / L[i] * ((X0 - originX) / scale - P[i]) - 0.5) + 1) +
                                    P[i]); // take the x coord of the nearest peak
@@ -1705,7 +2029,8 @@ void revertState()
 {
     deselectAll();
     n_sines = n_sines0;
-    for (int i = 0; i < n_sines; i++) {
+    for (int i = 0; i < n_sines; i++)
+    {
         A[i] = A0[i], L[i] = L0[i], P[i] = P0[i]; // (2m + 1)pi/2 = 2pi/L((x-X)/z - P)
     }
     overlayState = 0;
@@ -1773,12 +2098,14 @@ void drawHelpScreen()
     iText(width - 15, height - 15, "x", GLUT_BITMAP_HELVETICA_12);
     iText(width - 485, height - 30, "Help", GLUT_BITMAP_HELVETICA_18);
     iLine(width - 490, height - 40, width - 15, height - 40);
-    for (int i = 0; i < 15; i++) {
+    for (int i = 0; i < 15; i++)
+    {
         iText(width - 485, height - i * 20 - 60 - 5 * (i == 14), helpStrings[i], GLUT_BITMAP_HELVETICA_12);
     }
     iText(width - 485, height - 380, "Shortcuts", GLUT_BITMAP_HELVETICA_18);
     iLine(width - 490, height - 390, width - 15, height - 390);
-    for (int i = 0; i < 26; i++) {
+    for (int i = 0; i < 26; i++)
+    {
         iText(width - 485 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][0], GLUT_BITMAP_HELVETICA_12);
         iText(width - 395 + 250 * (i >= 13), height - (i % 13) * 15 - 410, shortcuts[i][1], GLUT_BITMAP_HELVETICA_12);
     }

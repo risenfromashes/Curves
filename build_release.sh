@@ -26,10 +26,8 @@ else
         g++ -IOpenGL/include -LOpenGL/dll/$5 $3  -o ./bin/$5/$4.exe -mwindows -O3 -static-libgcc -static-libstdc++ -lfreeglut -lOPENGL32 -lgdi32
     fi
     cd $2
-    if [[ -f $4_pb.sh ]]
-        then
-        ./$4_pb.sh
-    fi
+    7z a -tzip $4_src.zip $4.cpp expr.h ext.h
+    mv $4_src.zip $1/release
     cd $1
     for file in ./OpenGL/dll/$5/*.dll
     do
