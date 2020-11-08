@@ -506,13 +506,13 @@ void iKeyboard(unsigned char key)
             {
                 // alt+shift+p
                 for (int i = 0; i < n_sines; i++)
-                    P[i] -= 10 * L[i] / 360;
+                    P[i] += 10 * L[i] / 360;
             }
             else
             {
                 // alt+p
                 for (int i = 0; i < n_sines; i++)
-                    P[i] += 10 * L[i] / 360;
+                    P[i] -= 10 * L[i] / 360;
             }
             break;
         case 'S': // alt + S
@@ -1340,9 +1340,9 @@ void handleSupOverlay(int dragging)
     {
         // change phase
         if (dx >= w - 100 && dx <= w - 70)
-            supP -= 2.5;
-        else if (dx >= w - 30)
             supP += 2.5;
+        else if (dx >= w - 30)
+            supP -= 2.5;
         fmod(supP, 360.0);
         if (supP > 180.0)
             supP -= 360.0;
