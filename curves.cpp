@@ -1719,12 +1719,12 @@ void locateTracers()
                 if (tracersUnidirectional)
                 {
                     x = fmod(x, width);
-                    tracerX[i] = fmod(x + width, width);
+                    tracerX[i] = fmod(x + width + originX, width);
                 }
                 else
                 {
                     x = fmod(x, 2 * width);
-                    tracerX[i] = fabs(fmod(x + 2 * width, 2 * width) - width);
+                    tracerX[i] = fabs(fmod(x + 2 * width + originX, 2 * width) - width);
                 }
             }
             else
