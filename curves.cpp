@@ -1598,18 +1598,24 @@ void showAllTracers()
 void resumeAllTracers()
 {
     double t = iGetTime();
+    if (tracersSynced)
+        tracerSyncdt += t - tracerSyncPt;
     for (int i = 0; i <= n_sines; i++)
     {
-        tracerdt[i] += t - tracerPt[i];
+        if (!tracersSynced)
+            tracerdt[i] += t - tracerPt[i];
         tracerState[i] &= ~2;
     }
 }
 void pauseAllTracers()
 {
     double t = iGetTime();
+    if (tracersSynced)
+        tracerSyncPt = t;
     for (int i = 0; i <= n_sines; i++)
     {
-        tracerPt[i] = t;
+        if (!tracerSyncdt)
+            tracerPt[i] = t;
         tracerState[i] |= 2;
     }
 }
