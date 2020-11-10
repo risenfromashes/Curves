@@ -78,6 +78,8 @@ double frequency(int index);
 double phase(int index);
 void equation(int index, char *str, int size);
 
+int redraw = 1;
+
 void zoom(int dir, int x, int y);
 void pan(double dx, double dy);
 void backToOrigin();
@@ -152,46 +154,55 @@ void iDraw()
         t0 = t;
         scale0 = scale;
     }
-    iClear();
-    if (showGrid || graphMode || panningActive || t < t0 + 0.25)
-        drawGrid();
-    drawAxis();
-    if (graphMode)
+    if (redraw || tracerButtonMode)
     {
-        for (int i = 0; i < MAX_WIDTH; i++)
-            fY[i] = -INFINITY;
-        if ((exprPlot(expr, drawFunction) && exprUpdated()) || resized)
-            fourier();
+        iClear();
+        if (showGrid || graphMode || panningActive || t < t0 + 0.25)
+            drawGrid();
+        drawAxis();
+        if (graphMode)
+        {
+            for (int i = 0; i < MAX_WIDTH; i++)
+                fY[i] = -INFINITY;
+            if ((exprPlot(expr, drawFunction) && exprUpdated()) || resized)
+                fourier();
+        }
+        locateTracers();
+        drawSines();
+        drawTracers();
+        switch (overlayState)
+        {
+        case SUP_OVERLAY:
+            drawSupOverLay();
+            break;
+        case SIN_OVERLAY:
+            drawSinOverLay();
+            break;
+        case GEN_OVERLAY:
+            drawGenOverLay();
+            break;
+        }
+        if (drawing)
+            drawHandDrawnCurve();
+        if (graphMode)
+            drawTextBox();
+        drawBottomOverlay();
+        if (resized)
+            resized = 0;
+        drawHelpScreen();
+        redraw = 0;
     }
-    locateTracers();
-    drawSines();
-    drawTracers();
-    switch (overlayState)
-    {
-    case SUP_OVERLAY:
-        drawSupOverLay();
-        break;
-    case SIN_OVERLAY:
-        drawSinOverLay();
-        break;
-    case GEN_OVERLAY:
-        drawGenOverLay();
-        break;
-    }
-    if (drawing)
-        drawHandDrawnCurve();
-    if (graphMode)
-        drawTextBox();
-    drawBottomOverlay();
-    if (resized)
-        resized = 0;
-    drawHelpScreen();
 }
 
-void iPassiveMouseMove(int x, int y) { mX = x, mY = y; }
+void iPassiveMouseMove(int x, int y)
+{
+    redraw = 1;
+    mX = x, mY = y;
+}
 
 void iMouseMove(int x, int y)
 {
+    redraw = 1;
     if (overlayState)
     {
         X0 = x, Y0 = y;
@@ -277,6 +288,7 @@ void iMouseMove(int x, int y)
 
 void iMouse(int button, int state, int x, int y)
 {
+    redraw = 1;
     static int shouldDeselect = 0;
     if (state == GLUT_DOWN)
     {
@@ -449,6 +461,7 @@ void iMouse(int button, int state, int x, int y)
 
 void iResize(int w, int h)
 {
+    redraw = 1;
     int w0, h0;
     w0 = width, h0 = height;
     width = w, height = h;
@@ -472,6 +485,7 @@ void toggleFullScreen()
 
 void iKeyboard(unsigned char key)
 {
+    redraw = 1;
     if (glutGetModifiers() & GLUT_ACTIVE_ALT)
     {
         switch (toupper(key))
@@ -649,6 +663,7 @@ void iKeyboard(unsigned char key)
 
 void iSpecialKeyboard(unsigned char key)
 {
+    redraw = 1;
     switch (key)
     {
     case GLUT_KEY_F11:
