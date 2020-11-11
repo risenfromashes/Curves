@@ -272,8 +272,26 @@ void iSetTransparency(int state) { transparent = (state == 0) ? 0 : 1; }
 
 double iGetTime()
 {
+    //from vulkan gettime demo
+#if defined(_WIN32)
+    LARGE_INTEGER freq;
+    LARGE_INTEGER count;
+    QueryPerformanceCounter(&count);
+    QueryPerformanceFrequency(&freq);
+    assert(freq.LowPart != 0 || freq.HighPart != 0);
+    if (count.QuadPart < MAXLONGLONG / 1000000)
+        assert(freq.QuadPart != 0);
+    else
+        assert(freq.QuadPart >= 1000000);
+    return 1.0 * count.QuadPart / freq.QuadPart;
+#elif defined(__linux)
+    struct timespec currTime;
+    clock_gettime(CLOCK_MONOTONIC, &currTime);
+    return currTime.tv_sec + currTime.tv_nsec / 1e6;
+#else
     static clock_t start = clock();
     return (clock() - start) / double(CLOCKS_PER_SEC);
+#endif
 }
 
 double iRandom(double min, double max)
