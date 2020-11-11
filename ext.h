@@ -270,7 +270,7 @@ void iLineEx(double x1, double y1, double dx, double dy, double d = 1, int dashe
 
 void iSetTransparency(int state) { transparent = (state == 0) ? 0 : 1; }
 
-double iGetTime()
+static double _time()
 {
     //from vulkan gettime demo
 #if defined(_WIN32)
@@ -289,9 +289,13 @@ double iGetTime()
     clock_gettime(CLOCK_MONOTONIC, &currTime);
     return currTime.tv_sec + currTime.tv_nsec / 1e6;
 #else
-    static clock_t start = clock();
-    return (clock() - start) / double(CLOCKS_PER_SEC);
+    return clock() / double(CLOCKS_PER_SEC);
 #endif
+}
+double iGetTime()
+{
+    static double t0 = _time();
+    return _time() - t0;
 }
 
 double iRandom(double min, double max)

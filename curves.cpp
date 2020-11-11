@@ -154,7 +154,7 @@ void iDraw()
         t0 = t;
         scale0 = scale;
     }
-    if (redraw || tracerButtonMode || clickedState)
+    if (t < 1.0 || redraw || tracerButtonMode || clickedState)
     {
         iClear();
         if (showGrid || graphMode || panningActive || t < t0 + 0.25)
