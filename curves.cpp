@@ -53,13 +53,14 @@ double panX = 0, panY = 0.0;
 double panX0 = 0, panY0 = 0.0;
 int panning = 0, panningActive = 0;
 double scale = 1.0;
-
 double tracerX[MAX_SINES + 5], tracerY[MAX_SINES + 5];
 int tracerState[MAX_SINES + 5] = {0}; // first bit set if tracer showed, second bit set if tracer paused
 double tracerPt[MAX_SINES + 5] = {0}, tracerdt[MAX_SINES + 5] = {0};
 double tracerSyncPt, tracerSyncdt = 0.0;
 int tracersSynced = 0, tracersUnidirectional = 1;
 double tracerSpeed = 150.0; // pixel/second
+int n_tracersShown = 0;     //number of tracers shown
+
 // 0 for all tracers hidden
 // 1 for all tracers showed and not synced
 // 2 for all tracers showed and synced
@@ -154,7 +155,7 @@ void iDraw()
         t0 = t;
         scale0 = scale;
     }
-    if (t < 1.0 || redraw || tracerButtonMode || clickedState)
+    if (t < 1.0 || redraw || clickedState || n_tracersShown > 0)
     {
         iClear();
         if (showGrid || graphMode || panningActive || t < t0 + 0.25)
@@ -1600,6 +1601,7 @@ void hideAllTracers()
     for (int i = 0; i <= n_sines; i++)
         hideTracer(i);
     tracerButtonMode = 0;
+    n_tracersShown = 0;
 }
 void showAllTracers()
 {
@@ -1609,6 +1611,7 @@ void showAllTracers()
         tracerButtonMode = 2;
     else
         tracerButtonMode = 1;
+    n_tracersShown = n_sines + 1;
 }
 void resumeAllTracers()
 {
@@ -1804,8 +1807,16 @@ void resumeTracer(int i)
     tracerdt[i] += iGetTime() - tracerPt[i];
     tracerState[i] &= ~2;
 }
-void showTracer(int i) { tracerState[i] |= 1; }
-void hideTracer(int i) { tracerState[i] &= ~1; }
+void showTracer(int i)
+{
+    tracerState[i] |= 1;
+    n_tracersShown++;
+}
+void hideTracer(int i)
+{
+    tracerState[i] &= ~1;
+    n_tracersShown--;
+}
 
 // 1 highlight, 2 to always highlight
 void drawBottomMenu(const char *text, int w, int dx, int highlight, int large)
